@@ -42,25 +42,20 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+      - ./scripts/ollama-entrypoint.sh:/ollama-entrypoint.sh
     restart: unless-stopped
     networks:
       - wren-network
-    entrypoint: ["/bin/sh", "-c"]
-    command: >
-      "ollama serve &
-       SERVER_PID=$$!;
-       echo 'Waiting for Ollama server to start...';
-       sleep 10;
-       echo 'Server started, pulling model in background...';
-       nohup sh -c 'ollama pull nomic-embed-text && echo Model ready' > /tmp/model-pull.log 2>&1 &
-       echo 'Health check will pass while model downloads...';
-       wait $$SERVER_PID"
+    environment:
+      - OLLAMA_MODELS=/root/.ollama/models
+      - OLLAMA_HOST=0.0.0.0:11434
+    entrypoint: ["/bin/sh", "/ollama-entrypoint.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:11434/api/tags > /dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   # Streamlit Data Assistant
   streamlit-app:
