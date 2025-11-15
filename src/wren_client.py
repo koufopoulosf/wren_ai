@@ -4,7 +4,7 @@ Wren AI API Client - Enhanced Version
 Improvements:
 - Actual entity discovery and search
 - Fuzzy matching for suggestions
-- Direct Redshift fallback for simple queries
+- Direct database fallback for simple queries (Redshift or Postgres)
 - Better error handling with context
 """
 
@@ -15,7 +15,20 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import httpx
 from fuzzywuzzy import fuzz, process
-import redshift_connector
+
+# Database connectors (import as needed)
+try:
+    import redshift_connector
+    REDSHIFT_AVAILABLE = True
+except ImportError:
+    REDSHIFT_AVAILABLE = False
+
+try:
+    import psycopg2
+    import psycopg2.extras
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +39,22 @@ class WrenClient:
     """
     
     def __init__(
-        self, 
-        base_url: str, 
+        self,
+        base_url: str,
         timeout: int = 30,
-        redshift_config: Optional[Dict] = None
+        db_type: str = "redshift",
+        db_config: Optional[Dict] = None,
+        redshift_config: Optional[Dict] = None  # Deprecated, use db_config
     ):
         """
-        Initialize Wren AI client with optional Redshift fallback.
-        
+        Initialize Wren AI client with optional database fallback.
+
         Args:
             base_url: Wren AI service URL
             timeout: Request timeout
-            redshift_config: Optional Redshift connection config for fallback
+            db_type: Database type ("redshift" or "postgres")
+            db_config: Optional database connection config for fallback
+            redshift_config: Deprecated - use db_config instead
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -51,13 +68,22 @@ class WrenClient:
         self._schema_cache = None
         self._entities_cache = []  # List of all entities (tables, columns, metrics)
 
-        # Redshift fallback (optional)
-        self.redshift_config = redshift_config
-        self._redshift_conn = None
+        # Database fallback (optional) - supports Redshift or Postgres
+        self.db_type = db_type.lower()
+        self.db_config = db_config or redshift_config  # Support legacy redshift_config
+        self._db_conn = None
 
         logger.info(f"✅ Enhanced Wren client initialized: {base_url}")
-        if redshift_config:
-            logger.info("✅ Redshift fallback enabled")
+        if self.db_config:
+            logger.info(f"✅ Database fallback enabled: {self.db_type.upper()}")
+
+            # Validate connector availability
+            if self.db_type == "redshift" and not REDSHIFT_AVAILABLE:
+                logger.warning("⚠️ redshift-connector not installed, fallback disabled")
+                self.db_config = None
+            elif self.db_type == "postgres" and not POSTGRES_AVAILABLE:
+                logger.warning("⚠️ psycopg2 not installed, fallback disabled")
+                self.db_config = None
 
     async def _rate_limit(self):
         """Simple rate limiting for Wren AI calls."""
@@ -512,51 +538,72 @@ class WrenClient:
         except Exception as e:
             logger.warning(f"Wren AI execution failed: {e}")
 
-            # Try Redshift fallback
-            if self.redshift_config:
-                logger.info("Trying direct Redshift fallback...")
-                return await self._execute_via_redshift(sql)
+            # Try database fallback
+            if self.db_config:
+                logger.info(f"Trying direct {self.db_type.upper()} fallback...")
+                return await self._execute_via_database(sql)
             else:
                 raise Exception(f"Query failed: {str(e)}")
     
-    async def _execute_via_redshift(self, sql: str) -> List[Dict]:
+    async def _execute_via_database(self, sql: str) -> List[Dict]:
         """
-        Execute SQL directly on Redshift (fallback).
+        Execute SQL directly on database (fallback).
+
+        Supports both Redshift and Postgres.
         """
         try:
             # Create connection if needed
-            if not self._redshift_conn:
-                self._redshift_conn = redshift_connector.connect(
-                    host=self.redshift_config['host'],
-                    port=self.redshift_config.get('port', 5439),
-                    database=self.redshift_config['database'],
-                    user=self.redshift_config['user'],
-                    password=self.redshift_config['password'],
-                    ssl=self.redshift_config.get('ssl', True)
-                )
-            
-            cursor = self._redshift_conn.cursor()
+            if not self._db_conn:
+                if self.db_type == "redshift":
+                    self._db_conn = redshift_connector.connect(
+                        host=self.db_config['host'],
+                        port=self.db_config.get('port', 5439),
+                        database=self.db_config['database'],
+                        user=self.db_config['user'],
+                        password=self.db_config['password'],
+                        ssl=self.db_config.get('ssl', True)
+                    )
+                elif self.db_type == "postgres":
+                    self._db_conn = psycopg2.connect(
+                        host=self.db_config['host'],
+                        port=self.db_config.get('port', 5432),
+                        database=self.db_config['database'],
+                        user=self.db_config['user'],
+                        password=self.db_config['password'],
+                        sslmode='require' if self.db_config.get('ssl', True) else 'prefer'
+                    )
+                else:
+                    raise Exception(f"Unsupported database type: {self.db_type}")
+
+            cursor = self._db_conn.cursor()
             cursor.execute(sql)
-            
+
             # Get column names
             columns = [desc[0] for desc in cursor.description]
-            
+
             # Fetch results
             rows = cursor.fetchall()
-            
+
             # Convert to list of dicts
             results = []
             for row in rows:
                 results.append(dict(zip(columns, row)))
-            
+
             cursor.close()
-            
-            logger.info(f"✅ Redshift fallback success: {len(results)} rows")
+
+            logger.info(f"✅ {self.db_type.upper()} fallback success: {len(results)} rows")
             return results
-        
+
         except Exception as e:
-            logger.error(f"❌ Redshift fallback failed: {e}")
+            logger.error(f"❌ {self.db_type.upper()} fallback failed: {e}")
             raise Exception(f"Query execution failed: {str(e)}")
+
+    async def _execute_via_redshift(self, sql: str) -> List[Dict]:
+        """
+        DEPRECATED: Use _execute_via_database instead.
+        Kept for backward compatibility.
+        """
+        return await self._execute_via_database(sql)
     
     async def health_check(self) -> bool:
         """Check Wren AI health."""
@@ -582,8 +629,9 @@ class WrenClient:
     async def close(self):
         """Cleanup connections."""
         await self.client.aclose()
-        
-        if self._redshift_conn:
-            self._redshift_conn.close()
-        
+
+        if self._db_conn:
+            self._db_conn.close()
+            logger.info(f"{self.db_type.upper()} connection closed")
+
         logger.info("Wren AI client closed")

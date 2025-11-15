@@ -16,7 +16,6 @@ import time
 from typing import Dict, Optional, List
 from datetime import datetime
 from slack_bolt.async_app import AsyncApp
-from fuzzywuzzy import fuzz, process
 
 from wren_client import WrenClient
 from security import RowLevelSecurity
@@ -198,6 +197,10 @@ class SlackBot:
                 text="❓ Please ask a question.\n\n*Example:* `/ask What was revenue last month?`"
             )
             return
+
+        # Periodic cleanup to prevent memory leaks
+        self.context_manager.cleanup_expired()
+        self.rate_limiter.cleanup_expired()
 
         try:
             # NEW: Check rate limit FIRST (before any processing)
@@ -723,9 +726,9 @@ class SlackBot:
     async def handle_export_json(self, ack, body, client):
         """Handle JSON export request."""
         await ack()
-        
+
         try:
-            value = json.dumps(body["actions"][0]["value"])
+            value = json.loads(body["actions"][0]["value"])  # FIXED: was json.dumps
             results = value["results"]
             question = value["question"]
             user_id = body["user"]["id"]

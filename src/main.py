@@ -65,9 +65,24 @@ async def main():
         
         # Initialize Wren AI client
         logger.info("Initializing Wren AI client...")
+
+        # Prepare database config for fallback
+        db_config = None
+        if config.DB_HOST and config.DB_DATABASE:
+            db_config = {
+                'host': config.DB_HOST,
+                'port': config.DB_PORT,
+                'database': config.DB_DATABASE,
+                'user': config.DB_USER,
+                'password': config.DB_PASSWORD,
+                'ssl': config.DB_SSL
+            }
+
         wren = WrenClient(
             base_url=config.WREN_URL,
-            timeout=config.MAX_QUERY_TIMEOUT_SECONDS
+            timeout=config.MAX_QUERY_TIMEOUT_SECONDS,
+            db_type=config.DB_TYPE,
+            db_config=db_config
         )
         
         # Initialize security (RLS)
@@ -149,7 +164,7 @@ async def main():
         logger.info("="*70)
         logger.info(f"📊 Wren AI: {config.WREN_URL}")
         logger.info(f"🤖 Claude Model: {config.ANTHROPIC_MODEL}")
-        logger.info(f"🗄️  Database: Redshift ({config.REDSHIFT_HOST})")
+        logger.info(f"🗄️  Database: {config.DB_TYPE.upper()} ({config.DB_HOST})")
         logger.info(f"👥 Configured users: {len(config.USER_ROLES)}")
         logger.info(f"🏢 Departments: {len(config.DEPT_ACCESS)}")
         logger.info("")

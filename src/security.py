@@ -9,9 +9,6 @@ Implements department-based data access control by:
 
 import logging
 from typing import Dict, Optional, List
-import sqlparse
-from sqlparse.sql import Where, Token, Identifier, Comparison
-from sqlparse.tokens import Keyword, Whitespace
 
 logger = logging.getLogger(__name__)
 
