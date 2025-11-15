@@ -2,9 +2,11 @@
 Vector-based semantic search using Qdrant and Ollama embeddings.
 
 This module provides semantic search capabilities by:
-1. Embedding text using Ollama (nomic-embed-text model)
+1. Embedding text using Ollama /api/embed endpoint (nomic-embed-text model)
 2. Storing/retrieving vectors in Qdrant
 3. Finding semantically similar items (tables, columns, etc.)
+
+Note: Uses the modern /api/embed endpoint (not the deprecated /api/embeddings)
 """
 
 import logging
@@ -86,16 +88,17 @@ class VectorSearch:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{self.ollama_url}/api/embeddings",
+                    f"{self.ollama_url}/api/embed",
                     json={
                         "model": self.embedding_model,
-                        "prompt": text
+                        "input": text
                     }
                 )
                 response.raise_for_status()
                 result = response.json()
-                # The /api/embeddings endpoint returns "embedding" (singular) as a flat array
-                return result["embedding"]
+                # The /api/embed endpoint returns "embeddings" (plural) as an array of arrays
+                # We take the first embedding since we're sending a single input
+                return result["embeddings"][0]
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             raise
