@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  wren-ai:
+    image: ghcr.io/canner/wren-ai:latest
+    ports:
+      - "8000:8000"
+    environment:
+      WREN_LLM_PROVIDER: anthropic
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # AWS Redshift connection for Wren AI
+      DB_TYPE: redshift
+      DB_HOST: ${REDSHIFT_HOST}
+      DB_PORT: ${REDSHIFT_PORT}
+      DB_NAME: ${REDSHIFT_DATABASE}
+      DB_USER: ${REDSHIFT_USER}
+      DB_PASSWORD: ${REDSHIFT_PASSWORD}
+      # Optional: SSL configuration for Redshift
+      DB_SSL: ${DB_SSL:-true}
+    volumes:
+      - wren-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - wren-network
+
+  bot:
+    build: .
+    depends_on:
+      wren-ai:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      WREN_URL: http://wren-ai:8000
+    volumes:
+      # Mount logs directory for easy access
+      - ./logs:/app/logs
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - wren-network
+
+volumes:
+  wren-data:
+    driver: local
+
+networks:
+  wren-network:
+    driver: bridge
