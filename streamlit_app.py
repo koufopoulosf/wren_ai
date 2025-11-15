@@ -381,12 +381,15 @@ def display_message(role: str, content: str, metadata: Dict = None):
                 if st.session_state.get(f'show_chart_{metadata.get("timestamp", "")}'):
                     create_chart(df)
 
-            if metadata.get('warnings'):
-                for warning in metadata['warnings']:
+            # Only show warnings/suggestions if they exist and aren't already in content
+            warnings = metadata.get('warnings')
+            if warnings and len(warnings) > 0:
+                for warning in warnings:
                     st.warning(warning)
 
-            if metadata.get('suggestions'):
-                st.info(f"💡 Suggestions: {', '.join(metadata['suggestions'])}")
+            suggestions = metadata.get('suggestions')
+            if suggestions and len(suggestions) > 0:
+                st.info(f"💡 Suggestions: {', '.join(suggestions)}")
 
 
 def create_chart(df: pd.DataFrame):
@@ -534,16 +537,43 @@ async def main():
         # Prepare assistant message
         if response['success']:
             content = response.get('explanation', '✅ Query executed successfully!')
+            # For successful queries, show warnings separately (like result warnings)
+            metadata = {
+                'sql': response.get('sql'),
+                'results': response.get('results'),
+                'warnings': response.get('warnings'),
+                'suggestions': response.get('suggestions'),
+                'timestamp': datetime.now().isoformat()
+            }
         else:
-            content = "❌ Could not answer this question. See details below."
+            # For errors, build a clean combined message
+            error_parts = ["❌ Could not answer this question."]
 
-        metadata = {
-            'sql': response.get('sql'),
-            'results': response.get('results'),
-            'warnings': response.get('warnings'),
-            'suggestions': response.get('suggestions'),
-            'timestamp': datetime.now().isoformat()
-        }
+            warnings = response.get('warnings', [])
+            suggestions = response.get('suggestions', [])
+
+            if warnings:
+                error_parts.append("\n\n**Error Details:**")
+                for warning in warnings:
+                    # Clean up the warning message
+                    clean_warning = warning.replace("❌ ", "").replace("⚠️ ", "")
+                    error_parts.append(f"- {clean_warning}")
+
+            if suggestions:
+                error_parts.append("\n\n**💡 Did you mean:**")
+                for suggestion in suggestions[:5]:  # Limit to top 5
+                    error_parts.append(f"- {suggestion}")
+
+            content = "\n".join(error_parts)
+
+            # Don't include warnings/suggestions in metadata for errors (already in content)
+            metadata = {
+                'sql': response.get('sql') if response.get('sql') else None,
+                'results': None,
+                'warnings': None,  # Already included in content
+                'suggestions': None,  # Already included in content
+                'timestamp': datetime.now().isoformat()
+            }
 
         st.session_state.messages.append({
             'role': 'assistant',

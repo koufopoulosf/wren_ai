@@ -68,15 +68,17 @@ Compare revenue between USA and Canada
 ## 📊 What's Included
 
 ### Test Database (PostgreSQL)
-- ✅ **E-commerce schema**: customers, orders, products, categories
-- ✅ **Sample data**: 20 customers, 40+ orders, 50 products
+- ✅ **E-commerce schema**: customers, orders, order_items, products, categories
+- ✅ **Sample data**: 100 customers, 40+ orders, 50 products across 8 categories
+- ✅ **Auto-initialization**: Schema and data loaded automatically on first startup
 - ✅ **Time range**: January-April 2024
 - ✅ **Regions**: USA, UK, Canada
 
 ### Semantic Layer (MDL)
-- ✅ **5 models**: Full relationships defined
-- ✅ **6 metrics**: Revenue, orders, customers, etc.
-- ✅ **Auto-aliasing**: Understands common synonyms
+- ✅ **5 models**: Full relationships defined with foreign keys
+- ✅ **10 metrics**: Revenue, orders, customers, profit, inventory, and more
+- ✅ **Smart aliases**: Understands "revenue"/"sales", "users"/"customers", "orders"/"purchases"
+- ✅ **Business logic**: Pre-defined filters (completed orders, active customers, low stock)
 
 ## 🏗️ Architecture
 
