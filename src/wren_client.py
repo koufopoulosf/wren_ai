@@ -287,14 +287,21 @@ Response:"""
     async def ask_question(
         self,
         question: str,
-        max_wait: int = 30
+        max_wait: int = 30,
+        use_enhancements: bool = True
     ) -> Dict:
         """
         Convert natural language to SQL using async polling API.
 
+        Enhanced with Phase 1 improvements:
+        - Schema formatting (DDL/Markdown)
+        - Cell value retrieval
+        - Enhanced context
+
         Args:
             question: Natural language question
             max_wait: Maximum seconds to wait for response
+            use_enhancements: Enable Phase 1 improvements (default: True)
 
         Returns:
             {
@@ -309,9 +316,47 @@ Response:"""
         # Detect entities mentioned in question
         mentioned_entities = await self._extract_entities_from_question(question)
 
+        # ✨ PHASE 1 ENHANCEMENT: Build enriched context
+        enhanced_context = None
+        if use_enhancements and self._schema_formatter and self._cell_retriever:
+            try:
+                logger.debug("🚀 Using Phase 1 enhancements...")
+
+                # Get relevant cell values
+                relevant_cells = await self._cell_retriever.retrieve_relevant_cells(question)
+
+                # Get schema in optimal format (Markdown for better LLM understanding)
+                schema_context = self.get_schema_markdown()
+
+                # Build enhanced context
+                context_parts = []
+
+                if schema_context:
+                    context_parts.append("# Database Schema\n" + schema_context)
+
+                if relevant_cells:
+                    cell_context = self._cell_retriever.format_cell_context(relevant_cells)
+                    context_parts.append("\n" + cell_context)
+                    logger.info(f"✅ Found relevant values in {len(relevant_cells)} columns")
+
+                if context_parts:
+                    enhanced_context = "\n\n".join(context_parts)
+                    logger.debug(f"📝 Enhanced context: {len(enhanced_context)} chars")
+
+            except Exception as e:
+                logger.warning(f"⚠️ Phase 1 enhancement failed: {e}, continuing without...")
+                enhanced_context = None
+
+        # Build payload
         payload = {
             "query": question
         }
+
+        # Add enhanced context if available
+        if enhanced_context:
+            # Try adding as custom_instruction (may not be supported by all Wren AI versions)
+            payload["custom_instruction"] = enhanced_context
+            logger.debug("📦 Added enhanced context to payload")
 
         # Add MDL hash for semantic layer version control
         if self.mdl_hash:
@@ -1380,3 +1425,129 @@ Response:"""
         if not self._schema_formatter:
             return ""
         return self._schema_formatter.to_compact()
+
+    async def generate_sql_with_claude(
+        self,
+        question: str,
+        use_ddl: bool = True
+    ) -> Dict:
+        """
+        Generate SQL directly with Claude (bypass Wren AI).
+
+        This is a fallback method when:
+        - Wren AI is unavailable
+        - Wren AI doesn't support custom_instruction
+        - Direct Claude generation is preferred
+
+        Args:
+            question: Natural language question
+            use_ddl: Use DDL format (True) or Markdown (False)
+
+        Returns:
+            {
+                'sql': str,
+                'confidence': float,
+                'method': 'claude_direct'
+            }
+        """
+        if not self.anthropic_client:
+            raise Exception("Anthropic client not initialized - cannot use Claude fallback")
+
+        logger.info("🤖 Generating SQL directly with Claude...")
+
+        try:
+            # Get schema in appropriate format
+            schema = self.get_schema_ddl() if use_ddl else self.get_schema_markdown()
+
+            if not schema:
+                raise Exception("No schema available for SQL generation")
+
+            # Get relevant cell values
+            relevant_cells = {}
+            if self._cell_retriever:
+                try:
+                    relevant_cells = await self._cell_retriever.retrieve_relevant_cells(question)
+                except Exception as e:
+                    logger.warning(f"Cell retrieval failed: {e}")
+
+            # Build prompt
+            prompt_parts = [
+                "You are a SQL expert. Generate a PostgreSQL query for the following question.",
+                "",
+                "**Database Schema:**",
+                "```sql" if use_ddl else "",
+                schema,
+                "```" if use_ddl else "",
+                ""
+            ]
+
+            if relevant_cells:
+                cell_context = self._cell_retriever.format_cell_context(relevant_cells)
+                prompt_parts.extend([
+                    cell_context,
+                    "",
+                    "**IMPORTANT:** Use the exact values shown above in your WHERE clauses.",
+                    ""
+                ])
+
+            prompt_parts.extend([
+                f"**Question:** {question}",
+                "",
+                "**Instructions:**",
+                "1. Use exact table and column names from the schema",
+                "2. Use exact values from 'Relevant Values Found' section",
+                "3. Generate ONLY the SQL query, no explanations",
+                "4. Use PostgreSQL syntax",
+                "5. Do NOT include markdown code fences",
+                "",
+                "SQL:"
+            ])
+
+            prompt = "\n".join(prompt_parts)
+
+            # Call Claude
+            import asyncio
+            loop = asyncio.get_event_loop()
+            message = await loop.run_in_executor(
+                None,
+                lambda: self.anthropic_client.messages.create(
+                    model=self.model,
+                    max_tokens=2000,
+                    temperature=0.2,  # Low temperature for precision
+                    messages=[{"role": "user", "content": prompt}]
+                )
+            )
+
+            response_text = message.content[0].text.strip()
+
+            # Extract SQL (remove code fences if present)
+            import re
+            sql = response_text
+
+            # Remove markdown code fences
+            sql = re.sub(r'^```sql\n', '', sql, flags=re.MULTILINE)
+            sql = re.sub(r'^```\n', '', sql, flags=re.MULTILINE)
+            sql = re.sub(r'\n```$', '', sql)
+            sql = sql.strip()
+
+            # Remove comments at the start (if any)
+            lines = sql.split('\n')
+            sql_lines = [line for line in lines if not line.strip().startswith('--')]
+            sql = '\n'.join(sql_lines).strip()
+
+            logger.info(f"✅ Claude generated SQL: {len(sql)} chars")
+
+            return {
+                'sql': sql,
+                'confidence': 0.8,  # Claude direct generation is pretty reliable
+                'method': 'claude_direct',
+                'metadata': {
+                    'model': self.model,
+                    'used_cell_values': len(relevant_cells) > 0,
+                    'schema_format': 'ddl' if use_ddl else 'markdown'
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Claude SQL generation failed: {e}", exc_info=True)
+            raise Exception(f"Failed to generate SQL with Claude: {str(e)}")

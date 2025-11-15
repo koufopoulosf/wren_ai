@@ -105,8 +105,9 @@ class CellRetriever:
         Returns:
             Dictionary mapping "table.column" to list of relevant values
         """
-        # Ensure cache is loaded
+        # Ensure cache is loaded (fixes race condition)
         if not self._cache_loaded:
+            logger.info("⏳ Cell cache not loaded yet, loading now...")
             await self.load_cell_cache()
 
         # Extract keywords from question
