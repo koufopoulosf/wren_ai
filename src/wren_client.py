@@ -18,6 +18,8 @@ from typing import Dict, List, Optional, Tuple
 import httpx
 from fuzzywuzzy import fuzz, process
 from anthropic import Anthropic
+from schema_formatter import SchemaFormatter
+from cell_retriever import CellRetriever
 
 # Database connectors (import as needed)
 try:
@@ -84,6 +86,8 @@ class WrenClient:
         self.mdl_hash = mdl_hash  # Version hash for MDL
         self._mdl_models = []  # Extracted models for quick access
         self._mdl_metrics = []  # Extracted metrics for quick access
+        self._schema_formatter = None  # Schema formatter for dual formats
+        self._cell_retriever = None  # Cell value retriever
 
         # Database fallback (optional) - supports Redshift or Postgres
         self.db_type = db_type.lower()
@@ -283,14 +287,21 @@ Response:"""
     async def ask_question(
         self,
         question: str,
-        max_wait: int = 30
+        max_wait: int = 30,
+        use_enhancements: bool = True
     ) -> Dict:
         """
         Convert natural language to SQL using async polling API.
 
+        Enhanced with Phase 1 improvements:
+        - Schema formatting (DDL/Markdown)
+        - Cell value retrieval
+        - Enhanced context
+
         Args:
             question: Natural language question
             max_wait: Maximum seconds to wait for response
+            use_enhancements: Enable Phase 1 improvements (default: True)
 
         Returns:
             {
@@ -305,9 +316,47 @@ Response:"""
         # Detect entities mentioned in question
         mentioned_entities = await self._extract_entities_from_question(question)
 
+        # ✨ PHASE 1 ENHANCEMENT: Build enriched context
+        enhanced_context = None
+        if use_enhancements and self._schema_formatter and self._cell_retriever:
+            try:
+                logger.debug("🚀 Using Phase 1 enhancements...")
+
+                # Get relevant cell values
+                relevant_cells = await self._cell_retriever.retrieve_relevant_cells(question)
+
+                # Get schema in optimal format (Markdown for better LLM understanding)
+                schema_context = self.get_schema_markdown()
+
+                # Build enhanced context
+                context_parts = []
+
+                if schema_context:
+                    context_parts.append("# Database Schema\n" + schema_context)
+
+                if relevant_cells:
+                    cell_context = self._cell_retriever.format_cell_context(relevant_cells)
+                    context_parts.append("\n" + cell_context)
+                    logger.info(f"✅ Found relevant values in {len(relevant_cells)} columns")
+
+                if context_parts:
+                    enhanced_context = "\n\n".join(context_parts)
+                    logger.debug(f"📝 Enhanced context: {len(enhanced_context)} chars")
+
+            except Exception as e:
+                logger.warning(f"⚠️ Phase 1 enhancement failed: {e}, continuing without...")
+                enhanced_context = None
+
+        # Build payload
         payload = {
             "query": question
         }
+
+        # Add enhanced context if available
+        if enhanced_context:
+            # Try adding as custom_instruction (may not be supported by all Wren AI versions)
+            payload["custom_instruction"] = enhanced_context
+            logger.debug("📦 Added enhanced context to payload")
 
         # Add MDL hash for semantic layer version control
         if self.mdl_hash:
@@ -962,6 +1011,24 @@ Response:"""
                     }
                     self._entities_cache.append(entity)
 
+                # Initialize schema formatter with loaded MDL
+                if self._mdl_models:
+                    self._schema_formatter = SchemaFormatter(
+                        mdl_models=self._mdl_models,
+                        mdl_metrics=self._mdl_metrics
+                    )
+                    logger.info("✅ Schema formatter initialized")
+
+                    # Initialize cell retriever
+                    self._cell_retriever = CellRetriever(
+                        wren_client=self,
+                        max_cells_per_column=10
+                    )
+
+                    # Load cell cache in background (non-blocking)
+                    asyncio.create_task(self._cell_retriever.load_cell_cache())
+                    logger.info("✅ Cell retriever initialized (loading cache in background)")
+
                 logger.info(f"✅ MDL loaded successfully")
                 logger.info(f"   - MDL hash: {self.mdl_hash[:8] if self.mdl_hash else 'N/A'}...")
                 logger.info(f"   - Models: {len(self._mdl_models)}")
@@ -1198,18 +1265,19 @@ Response:"""
 
     def _generate_aliases(self, name: str, description: str = "") -> List[str]:
         """
-        Generate common aliases/synonyms for an entity.
+        Enhanced alias generation with comprehensive synonym matching.
 
         Creates variations like:
-        - total_revenue -> revenue, total revenue, rev
-        - order_count -> orders, order count, num orders
+        - total_revenue -> revenue, total revenue, rev, sales, income, turnover, earnings
+        - order_count -> orders, order count, num orders, number of orders, purchase count
+        - customer_name -> customer, cust, client, buyer, user, account
 
         Args:
             name: Entity name
             description: Optional description to extract keywords from
 
         Returns:
-            List of aliases
+            List of aliases (up to 15)
         """
         if not name:
             return []
@@ -1217,26 +1285,40 @@ Response:"""
         aliases = []
         name_lower = name.lower()
 
-        # Add variations of the name
-        # Remove common prefixes
-        for prefix in ['total_', 'num_', 'count_', 'avg_', 'sum_', 'max_', 'min_']:
+        # Remove common prefixes and add as alias
+        for prefix in ['total_', 'num_', 'count_', 'avg_', 'sum_', 'max_', 'min_', 'total', 'num', 'count']:
             if name_lower.startswith(prefix):
                 aliases.append(name_lower.replace(prefix, ''))
+            if name_lower.startswith(prefix + '_'):
+                aliases.append(name_lower.replace(prefix + '_', ''))
 
         # Replace underscores with spaces
         if '_' in name_lower:
             aliases.append(name_lower.replace('_', ' '))
+            aliases.append(name_lower.replace('_', ''))  # Remove entirely
 
-        # Common abbreviations
+        # Enhanced business term mappings
         abbreviations = {
-            'revenue': ['rev', 'sales', 'income'],
-            'customer': ['cust', 'client'],
-            'order': ['orders', 'purchase', 'purchases'],
-            'user': ['users', 'member', 'members'],
-            'count': ['num', 'number', 'total'],
+            'revenue': ['rev', 'sales', 'income', 'turnover', 'earnings'],
+            'customer': ['cust', 'client', 'buyer', 'user', 'account'],
+            'order': ['orders', 'purchase', 'purchases', 'transaction', 'transactions'],
+            'product': ['products', 'item', 'items', 'sku', 'skus'],
+            'user': ['users', 'member', 'members', 'customer', 'customers'],
+            'count': ['num', 'number', 'total', 'qty', 'quantity'],
             'average': ['avg', 'mean'],
-            'quantity': ['qty', 'amount'],
-            'price': ['cost', 'value'],
+            'quantity': ['qty', 'amount', 'volume'],
+            'price': ['cost', 'value', 'rate'],
+            'date': ['time', 'timestamp', 'when'],
+            'amount': ['value', 'total', 'sum'],
+            'status': ['state', 'condition'],
+            'type': ['kind', 'category', 'class'],
+            'name': ['title', 'label'],
+            'id': ['identifier', 'key'],
+            'description': ['desc', 'details'],
+            'address': ['location', 'addr'],
+            'phone': ['telephone', 'tel'],
+            'email': ['mail', 'e-mail'],
+            'category': ['cat', 'group', 'type'],
         }
 
         # Add abbreviations if name contains these words
@@ -1247,12 +1329,19 @@ Response:"""
                 for abbrev in abbrevs:
                     aliases.append(name_lower.replace(word, abbrev))
 
+        # Extract keywords from description
+        if description:
+            desc_lower = description.lower()
+            for word, abbrevs in abbreviations.items():
+                if word in desc_lower and word not in name_lower:
+                    aliases.extend(abbrevs)
+
         # Remove duplicates and the original name
         aliases = list(set(aliases))
         if name_lower in aliases:
             aliases.remove(name_lower)
 
-        return aliases[:10]  # Limit to 10 aliases per entity
+        return aliases[:15]  # Limit to 15 aliases per entity
 
     def _calculate_hash(self, mdl: Dict) -> str:
         """
@@ -1300,3 +1389,165 @@ Response:"""
             }
             for metric in self._mdl_metrics
         ]
+
+    def get_schema_ddl(self) -> str:
+        """
+        Get schema in DDL format (for SQL generation).
+
+        Returns:
+            DDL-formatted schema string
+        """
+        if not self._schema_formatter:
+            return ""
+        return self._schema_formatter.to_ddl(
+            include_comments=True,
+            include_examples=True
+        )
+
+    def get_schema_markdown(self) -> str:
+        """
+        Get schema in Markdown format (for LLM reasoning).
+
+        Returns:
+            Markdown-formatted schema string
+        """
+        if not self._schema_formatter:
+            return ""
+        return self._schema_formatter.to_markdown(include_metrics=True)
+
+    def get_schema_compact(self) -> str:
+        """
+        Get compact schema (for token efficiency).
+
+        Returns:
+            Compact schema string
+        """
+        if not self._schema_formatter:
+            return ""
+        return self._schema_formatter.to_compact()
+
+    async def generate_sql_with_claude(
+        self,
+        question: str,
+        use_ddl: bool = True
+    ) -> Dict:
+        """
+        Generate SQL directly with Claude (bypass Wren AI).
+
+        This is a fallback method when:
+        - Wren AI is unavailable
+        - Wren AI doesn't support custom_instruction
+        - Direct Claude generation is preferred
+
+        Args:
+            question: Natural language question
+            use_ddl: Use DDL format (True) or Markdown (False)
+
+        Returns:
+            {
+                'sql': str,
+                'confidence': float,
+                'method': 'claude_direct'
+            }
+        """
+        if not self.anthropic_client:
+            raise Exception("Anthropic client not initialized - cannot use Claude fallback")
+
+        logger.info("🤖 Generating SQL directly with Claude...")
+
+        try:
+            # Get schema in appropriate format
+            schema = self.get_schema_ddl() if use_ddl else self.get_schema_markdown()
+
+            if not schema:
+                raise Exception("No schema available for SQL generation")
+
+            # Get relevant cell values
+            relevant_cells = {}
+            if self._cell_retriever:
+                try:
+                    relevant_cells = await self._cell_retriever.retrieve_relevant_cells(question)
+                except Exception as e:
+                    logger.warning(f"Cell retrieval failed: {e}")
+
+            # Build prompt
+            prompt_parts = [
+                "You are a SQL expert. Generate a PostgreSQL query for the following question.",
+                "",
+                "**Database Schema:**",
+                "```sql" if use_ddl else "",
+                schema,
+                "```" if use_ddl else "",
+                ""
+            ]
+
+            if relevant_cells:
+                cell_context = self._cell_retriever.format_cell_context(relevant_cells)
+                prompt_parts.extend([
+                    cell_context,
+                    "",
+                    "**IMPORTANT:** Use the exact values shown above in your WHERE clauses.",
+                    ""
+                ])
+
+            prompt_parts.extend([
+                f"**Question:** {question}",
+                "",
+                "**Instructions:**",
+                "1. Use exact table and column names from the schema",
+                "2. Use exact values from 'Relevant Values Found' section",
+                "3. Generate ONLY the SQL query, no explanations",
+                "4. Use PostgreSQL syntax",
+                "5. Do NOT include markdown code fences",
+                "",
+                "SQL:"
+            ])
+
+            prompt = "\n".join(prompt_parts)
+
+            # Call Claude
+            import asyncio
+            loop = asyncio.get_event_loop()
+            message = await loop.run_in_executor(
+                None,
+                lambda: self.anthropic_client.messages.create(
+                    model=self.model,
+                    max_tokens=2000,
+                    temperature=0.2,  # Low temperature for precision
+                    messages=[{"role": "user", "content": prompt}]
+                )
+            )
+
+            response_text = message.content[0].text.strip()
+
+            # Extract SQL (remove code fences if present)
+            import re
+            sql = response_text
+
+            # Remove markdown code fences
+            sql = re.sub(r'^```sql\n', '', sql, flags=re.MULTILINE)
+            sql = re.sub(r'^```\n', '', sql, flags=re.MULTILINE)
+            sql = re.sub(r'\n```$', '', sql)
+            sql = sql.strip()
+
+            # Remove comments at the start (if any)
+            lines = sql.split('\n')
+            sql_lines = [line for line in lines if not line.strip().startswith('--')]
+            sql = '\n'.join(sql_lines).strip()
+
+            logger.info(f"✅ Claude generated SQL: {len(sql)} chars")
+
+            return {
+                'sql': sql,
+                'confidence': 0.8,  # Claude direct generation is pretty reliable
+                'method': 'claude_direct',
+                'metadata': {
+                    'model': self.model,
+                    'used_cell_values': len(relevant_cells) > 0,
+                    'schema_format': 'ddl' if use_ddl else 'markdown'
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Claude SQL generation failed: {e}", exc_info=True)
+            raise Exception(f"Failed to generate SQL with Claude: {str(e)}")

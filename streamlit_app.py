@@ -17,9 +17,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import json
+import logging
 from typing import Dict, List, Any
 import sys
 import os
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
