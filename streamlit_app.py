@@ -453,7 +453,41 @@ def create_chart(df: pd.DataFrame):
         st.dataframe(df, use_container_width=True)
 
 
-async def main():
+def get_or_create_event_loop():
+    """
+    Get or create an event loop for the session.
+
+    This fixes the "got Future attached to a different loop" error by
+    ensuring all async operations in a session use the same event loop.
+    """
+    if 'event_loop' not in st.session_state:
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Event loop is closed")
+        except RuntimeError:
+            # No event loop or it's closed, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        st.session_state.event_loop = loop
+
+    return st.session_state.event_loop
+
+
+def run_async(coro):
+    """
+    Run async coroutine with proper event loop handling for Streamlit.
+
+    This uses a session-specific event loop to ensure all async operations
+    (including asyncpg database connections) use the same loop.
+    """
+    loop = get_or_create_event_loop()
+    return loop.run_until_complete(coro)
+
+
+def main():
     """Main application."""
     init_session_state()
 
@@ -461,7 +495,7 @@ async def main():
     if not st.session_state.initialized:
         with st.spinner("🚀 Initializing Wren AI..."):
             try:
-                await st.session_state.assistant.initialize()
+                run_async(st.session_state.assistant.initialize())
                 st.session_state.initialized = True
             except Exception as e:
                 st.error(f"❌ Failed to initialize Wren AI: {str(e)}")
@@ -613,7 +647,7 @@ Ollama URL: {st.session_state.assistant.config.OLLAMA_URL}
 
         # Process question
         with st.spinner("🤔 Thinking..."):
-            response = await st.session_state.assistant.process_question(question)
+            response = run_async(st.session_state.assistant.process_question(question))
 
         # Prepare assistant message
         if response['success']:
@@ -666,4 +700,4 @@ Ollama URL: {st.session_state.assistant.config.OLLAMA_URL}
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
