@@ -235,11 +235,34 @@ wren_ai/
 docker-compose ps
 
 # View logs
-docker-compose logs wren-ai
+docker-compose logs ollama
 docker-compose logs streamlit-app
 
 # Restart specific service
 docker-compose restart streamlit-app
+```
+
+### Ollama Model Download (First Startup)
+
+**Important**: On first startup, Ollama downloads the `nomic-embed-text` model (~270MB) in the background. This process:
+
+- ✅ **Container becomes healthy immediately** - The Ollama server starts quickly
+- 📥 **Model downloads in background** - This can take 2-5 minutes depending on your internet connection
+- 🔄 **App works during download** - The container is healthy, but embeddings won't work until the model is ready
+
+**Check model download progress**:
+```bash
+# View download logs
+docker logs wren-ollama
+
+# Check if model is ready
+docker exec wren-ollama ollama list
+```
+
+**Expected output when ready**:
+```
+NAME                    ID              SIZE
+nomic-embed-text:latest <id>            274 MB
 ```
 
 ### Database Connection Issues
