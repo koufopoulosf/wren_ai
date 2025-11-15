@@ -39,8 +39,8 @@ from query_explainer import QueryExplainer
 st.set_page_config(
     page_title="Wren AI Data Assistant",
     page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # Custom CSS for Claude-like aesthetics
@@ -51,44 +51,55 @@ st.markdown("""
     footer {visibility: hidden;}
     .stDeployButton {display: none;}
 
-    /* Keep header visible for sidebar toggle */
+    /* Hide sidebar completely */
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+
+    /* Hide sidebar collapse button */
+    button[kind="header"] {
+        display: none;
+    }
+
+    /* Keep header visible but minimal */
     header[data-testid="stHeader"] {
         background-color: transparent;
     }
 
-    /* Main container */
+    /* Main container - centered like Claude */
     .main {
         background-color: #ffffff;
-        max-width: 1200px;
-        padding: 2rem 1rem;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
     }
 
     .block-container {
-        padding-top: 1rem;
-        max-width: 1200px;
+        padding-top: 2rem;
+        padding-bottom: 4rem;
+        max-width: 900px;
     }
 
     /* Chat message styling - Claude-like */
     .user-message {
         background-color: #f7f7f8;
-        padding: 16px 24px;
-        border-radius: 16px;
-        margin: 16px 0;
+        padding: 20px 24px;
+        border-radius: 12px;
+        margin: 12px 0;
         font-size: 15px;
-        line-height: 1.6;
-        color: #2c3e50;
+        line-height: 1.65;
+        color: #1f2937;
+        font-weight: 400;
     }
 
     .assistant-message {
         background-color: #ffffff;
-        border: 1px solid #e5e7eb;
-        padding: 16px 24px;
-        border-radius: 16px;
-        margin: 16px 0;
+        padding: 20px 24px;
+        border-radius: 12px;
+        margin: 12px 0;
         font-size: 15px;
-        line-height: 1.7;
+        line-height: 1.65;
         color: #1f2937;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
     /* Code blocks - like Claude */
@@ -100,60 +111,42 @@ st.markdown("""
 
     /* Buttons - minimal and clean */
     .stButton>button {
-        border-radius: 8px;
-        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
         padding: 8px 16px;
-        transition: all 0.2s;
+        transition: all 0.15s ease;
         background-color: #ffffff;
-        color: #24292f;
+        color: #1f2937;
         font-weight: 500;
+        font-size: 14px;
     }
 
     .stButton>button:hover {
-        background-color: #f6f8fa;
-        border-color: #2ea44f;
+        background-color: #f7f7f8;
+        border-color: #d1d5db;
     }
 
     .stButton>button[kind="primary"] {
-        background-color: #2ea44f;
+        background-color: #1f2937;
         color: white;
         border: none;
     }
 
     .stButton>button[kind="primary"]:hover {
-        background-color: #2c974b;
+        background-color: #111827;
     }
 
     /* Chat input - clean and modern */
     .stChatInput {
-        border-radius: 12px;
-        border: 2px solid #d0d7de;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
         padding: 12px 16px;
         font-size: 15px;
     }
 
     .stChatInput:focus {
-        border-color: #2ea44f;
-        box-shadow: 0 0 0 3px rgba(46, 164, 79, 0.1);
-    }
-
-    /* Sidebar - clean */
-    [data-testid="stSidebar"] {
-        background-color: #f7f7f8;
-        border-right: 1px solid #e5e7eb;
-    }
-
-    [data-testid="stSidebar"] .element-container {
-        padding: 0.5rem 0;
-    }
-
-    /* Metrics - simple cards */
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 12px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        border-color: #9ca3af;
+        box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
     }
 
     /* Expander - clean */
@@ -180,6 +173,7 @@ st.markdown("""
         font-weight: 600;
         color: #1f2937;
         margin-bottom: 0.5rem;
+        font-size: 28px;
     }
 
     h2, h3 {
@@ -191,6 +185,49 @@ st.markdown("""
     .dataframe {
         border: 1px solid #e5e7eb;
         border-radius: 8px;
+        font-size: 14px;
+    }
+
+    /* Status badge */
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 500;
+        background-color: #d1fae5;
+        color: #065f46;
+        margin-bottom: 1rem;
+    }
+
+    /* Welcome message */
+    .welcome-message {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: #6b7280;
+    }
+
+    .welcome-message h2 {
+        color: #1f2937;
+        margin-bottom: 1rem;
+    }
+
+    /* Example queries */
+    .example-query {
+        background-color: #f7f7f8;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 8px 0;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-size: 14px;
+    }
+
+    .example-query:hover {
+        background-color: #ffffff;
+        border-color: #9ca3af;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -349,22 +386,22 @@ def init_session_state():
 def display_message(role: str, content: str, metadata: Dict = None):
     """Display a chat message with styling."""
     if role == "user":
-        st.markdown(f'<div class="user-message">👤 {content}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="user-message">{content}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="assistant-message">🤖 {content}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="assistant-message">{content}</div>', unsafe_allow_html=True)
 
         # Display metadata if present
         if metadata:
             if metadata.get('sql'):
-                with st.expander("📝 View SQL"):
+                with st.expander("💻 View SQL Query", expanded=False):
                     st.code(metadata['sql'], language='sql')
 
             if metadata.get('results'):
                 results = metadata['results']
                 df = pd.DataFrame(results)
 
-                with st.expander(f"📊 View Results ({len(results)} rows)"):
-                    st.dataframe(df, use_container_width=True)
+                with st.expander(f"📊 Results ({len(results)} rows)", expanded=True):
+                    st.dataframe(df, use_container_width=True, height=min(400, len(results) * 35 + 38))
 
                     # Export options
                     col1, col2, col3 = st.columns(3)
@@ -372,25 +409,27 @@ def display_message(role: str, content: str, metadata: Dict = None):
                     with col1:
                         csv = df.to_csv(index=False)
                         st.download_button(
-                            "📥 Download CSV",
+                            "⬇ CSV",
                             csv,
                             f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                             "text/csv",
-                            key=f"csv_{metadata.get('timestamp', '')}"
+                            key=f"csv_{metadata.get('timestamp', '')}",
+                            use_container_width=True
                         )
 
                     with col2:
                         json_str = df.to_json(orient='records', indent=2)
                         st.download_button(
-                            "📥 Download JSON",
+                            "⬇ JSON",
                             json_str,
                             f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                             "application/json",
-                            key=f"json_{metadata.get('timestamp', '')}"
+                            key=f"json_{metadata.get('timestamp', '')}",
+                            use_container_width=True
                         )
 
                     with col3:
-                        if st.button("📈 Create Chart", key=f"chart_{metadata.get('timestamp', '')}"):
+                        if st.button("📈 Chart", key=f"chart_{metadata.get('timestamp', '')}", use_container_width=True):
                             st.session_state[f'show_chart_{metadata.get("timestamp", "")}'] = True
 
                 # Show chart if requested
@@ -501,134 +540,55 @@ def main():
                 st.error(f"❌ Failed to initialize Wren AI: {str(e)}")
                 st.stop()
 
-    # Header with sidebar toggle
-    col1, col2 = st.columns([6, 1])
-    with col1:
-        st.title("🤖 Wren AI Data Assistant")
-        st.markdown("Ask questions about your data in natural language")
-    with col2:
-        # Sidebar toggle button
-        if st.button("☰", key="sidebar_toggle", help="Toggle sidebar"):
-            st.rerun()
+    # Header
+    st.title("🤖 Wren AI Data Assistant")
+    st.markdown('<span class="status-badge">✓ Ready</span>', unsafe_allow_html=True)
 
-    # Sidebar
-    with st.sidebar:
-        st.success("✅ Wren AI Ready")
+    # Welcome message and examples (only show if no messages)
+    if len(st.session_state.messages) == 0:
+        st.markdown("""
+        <div class="welcome-message">
+            <h2>Ask questions about your data</h2>
+            <p>I can help you explore and analyze your e-commerce data using natural language.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown("---")
+        st.markdown("##### Try asking:")
 
-        # Statistics
-        st.subheader("📊 Schema Info")
-        schema_info = st.session_state.assistant.schema_info
-        tables = schema_info.get("tables", [])
-        relationships = schema_info.get("relationships", [])
-
-        # Get unique table names
-        table_names = list(set([t.get("table_name") for t in tables if t.get("table_name")]))
-
+        # Example queries in a grid
         col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Tables", len(table_names))
-        with col2:
-            st.metric("Relationships", len(relationships))
-
-        # Show message if no schema loaded
-        if len(table_names) == 0:
-            st.warning("""
-            ⚠️ **No schema loaded**
-
-            **Possible causes:**
-            - Database not connected (check `.env` file)
-            - Invalid database credentials
-            - Database has no tables in the 'public' schema
-            - Qdrant or Ollama services not running
-
-            **To fix:**
-            1. Copy `.env.example` to `.env`
-            2. Set your `ANTHROPIC_API_KEY`
-            3. Set your database credentials:
-               - `DB_HOST`, `DB_PORT`, `DB_DATABASE`
-               - `DB_USER`, `DB_PASSWORD`
-            4. Ensure Qdrant and Ollama services are running
-            5. Restart the app
-
-            **Or:** Use Docker Compose for auto-setup:
-            ```
-            docker-compose up -d
-            ```
-            """)
-
-            # Show current config (masked passwords)
-            with st.expander("🔍 View Current Config"):
-                st.code(f"""
-Database Type: {st.session_state.assistant.config.DB_TYPE}
-Database Host: {st.session_state.assistant.config.DB_HOST}
-Database Port: {st.session_state.assistant.config.DB_PORT}
-Database Name: {st.session_state.assistant.config.DB_DATABASE}
-Database User: {st.session_state.assistant.config.DB_USER}
-Qdrant Host: {st.session_state.assistant.config.QDRANT_HOST}
-Ollama URL: {st.session_state.assistant.config.OLLAMA_URL}
-                """, language="yaml")
-
-        # Show available tables
-        if table_names:
-            with st.expander("📋 View Tables", expanded=False):
-                # Group columns by table
-                tables_dict = {}
-                for table_row in tables:
-                    table_name = table_row.get("table_name")
-                    if table_name not in tables_dict:
-                        tables_dict[table_name] = {
-                            "comment": table_row.get("table_comment"),
-                            "columns": []
-                        }
-                    tables_dict[table_name]["columns"].append({
-                        "name": table_row.get("column_name"),
-                        "type": table_row.get("data_type"),
-                        "nullable": table_row.get("is_nullable")
-                    })
-
-                for table_name in sorted(tables_dict.keys()):
-                    table_info = tables_dict[table_name]
-                    comment = table_info.get("comment")
-                    column_count = len(table_info.get("columns", []))
-
-                    if comment:
-                        st.write(f"**{table_name}** ({column_count} columns)")
-                        st.caption(comment)
-                    else:
-                        st.write(f"• **{table_name}** ({column_count} columns)")
-
-        st.markdown("---")
-
-        # Example queries
-        st.subheader("💡 Example Queries")
         examples = [
             "What was total revenue last month?",
             "Show top 10 customers by orders",
             "How many active customers do we have?",
             "What's our average order value?",
-            "Show revenue trends by month"
+            "Show revenue trends by month",
+            "Which products sell the best?"
         ]
 
-        for example in examples:
-            if st.button(example, key=f"ex_{example}", use_container_width=True):
-                st.session_state.current_question = example
+        for idx, example in enumerate(examples):
+            with col1 if idx % 2 == 0 else col2:
+                if st.button(f"💬 {example}", key=f"ex_{idx}", use_container_width=True):
+                    st.session_state.current_question = example
+                    st.rerun()
+
+    # Display chat messages
+    if len(st.session_state.messages) > 0:
+        # Add clear button at top when there are messages
+        col1, col2, col3 = st.columns([1, 1, 6])
+        with col1:
+            if st.button("🗑️ Clear", use_container_width=True):
+                st.session_state.messages = []
                 st.rerun()
 
         st.markdown("---")
 
-        # Clear chat
-        if st.button("🗑️ Clear Chat", use_container_width=True):
-            st.session_state.messages = []
-            st.rerun()
-
-    # Display chat messages
     for message in st.session_state.messages:
         display_message(message['role'], message['content'], message.get('metadata'))
 
     # Input area
-    st.markdown("---")
+    if len(st.session_state.messages) > 0:
+        st.markdown("---")
 
     # Handle example question
     default_question = st.session_state.get('current_question', '')
