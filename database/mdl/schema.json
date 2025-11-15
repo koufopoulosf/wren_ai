@@ -257,7 +257,8 @@
   "metrics": [
     {
       "name": "total_revenue",
-      "description": "Total revenue from completed orders",
+      "aliases": ["revenue", "sales", "total_sales", "income"],
+      "description": "Total revenue from completed orders (also known as sales, income)",
       "baseObject": "orders",
       "dimension": [],
       "measure": {
@@ -269,6 +270,7 @@
     },
     {
       "name": "order_count",
+      "aliases": ["orders", "total_orders", "number_of_orders"],
       "description": "Total number of orders",
       "baseObject": "orders",
       "dimension": [],
@@ -280,7 +282,8 @@
     },
     {
       "name": "avg_order_value",
-      "description": "Average order value for completed orders",
+      "aliases": ["aov", "average_order", "order_average"],
+      "description": "Average order value for completed orders (AOV)",
       "baseObject": "orders",
       "dimension": [],
       "measure": {
@@ -292,7 +295,8 @@
     },
     {
       "name": "active_customers",
-      "description": "Number of active customers",
+      "aliases": ["customers", "users", "active_users", "customer_count"],
+      "description": "Number of active customers (also known as users)",
       "baseObject": "customers",
       "dimension": [],
       "measure": {
@@ -302,7 +306,19 @@
       "filter": "is_active = true"
     },
     {
+      "name": "total_customers",
+      "aliases": ["all_customers", "total_users"],
+      "description": "Total number of customers (including inactive)",
+      "baseObject": "customers",
+      "dimension": [],
+      "measure": {
+        "type": "count",
+        "column": "*"
+      }
+    },
+    {
       "name": "total_discounts",
+      "aliases": ["discounts", "discount_amount"],
       "description": "Total discount amount given",
       "baseObject": "orders",
       "dimension": [],
@@ -314,6 +330,7 @@
     },
     {
       "name": "products_sold",
+      "aliases": ["items_sold", "units_sold", "quantity_sold"],
       "description": "Total quantity of products sold",
       "baseObject": "order_items",
       "dimension": [],
@@ -321,6 +338,43 @@
         "type": "sum",
         "column": "quantity"
       },
+      "timeGrain": "day"
+    },
+    {
+      "name": "gross_profit",
+      "aliases": ["profit", "margin"],
+      "description": "Gross profit from completed orders (revenue - cost)",
+      "baseObject": "order_items",
+      "dimension": [],
+      "measure": {
+        "type": "sum",
+        "column": "(unit_price - products.cost) * quantity"
+      },
+      "timeGrain": "day"
+    },
+    {
+      "name": "low_stock_products",
+      "aliases": ["low_inventory", "items_low_stock"],
+      "description": "Number of products with stock quantity below 50",
+      "baseObject": "products",
+      "dimension": [],
+      "measure": {
+        "type": "count",
+        "column": "*"
+      },
+      "filter": "stock_quantity < 50"
+    },
+    {
+      "name": "completed_orders",
+      "aliases": ["successful_orders", "finished_orders"],
+      "description": "Number of completed orders",
+      "baseObject": "orders",
+      "dimension": [],
+      "measure": {
+        "type": "count",
+        "column": "*"
+      },
+      "filter": "order_status = 'completed'",
       "timeGrain": "day"
     }
   ]

@@ -41,99 +41,147 @@ st.set_page_config(
 # Custom CSS for Claude-like aesthetics
 st.markdown("""
 <style>
+    /* Hide Streamlit default elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display: none;}
+
     /* Main container */
     .main {
         background-color: #ffffff;
+        max-width: 1200px;
+        padding: 2rem 1rem;
     }
 
-    /* Chat message styling */
+    .block-container {
+        padding-top: 1rem;
+        max-width: 1200px;
+    }
+
+    /* Chat message styling - Claude-like */
     .user-message {
         background-color: #f7f7f8;
-        padding: 16px 20px;
-        border-radius: 12px;
-        margin: 10px 0;
-        max-width: 80%;
-        margin-left: auto;
+        padding: 16px 24px;
+        border-radius: 16px;
+        margin: 16px 0;
+        font-size: 15px;
+        line-height: 1.6;
+        color: #2c3e50;
     }
 
     .assistant-message {
         background-color: #ffffff;
-        border: 1px solid #e5e5e5;
-        padding: 16px 20px;
-        border-radius: 12px;
-        margin: 10px 0;
-        max-width: 80%;
+        border: 1px solid #e5e7eb;
+        padding: 16px 24px;
+        border-radius: 16px;
+        margin: 16px 0;
+        font-size: 15px;
+        line-height: 1.7;
+        color: #1f2937;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
-    /* Code blocks */
-    .sql-block {
+    /* Code blocks - like Claude */
+    .stCodeBlock {
         background-color: #f6f8fa;
-        padding: 12px;
-        border-radius: 6px;
-        font-family: 'Monaco', 'Courier New', monospace;
-        font-size: 13px;
-        border-left: 3px solid #2ea44f;
-        margin: 10px 0;
+        border-radius: 8px;
+        border: 1px solid #d0d7de;
     }
 
-    /* Metrics */
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    /* Buttons */
+    /* Buttons - minimal and clean */
     .stButton>button {
         border-radius: 8px;
-        border: 1px solid #e5e5e5;
+        border: 1px solid #d0d7de;
         padding: 8px 16px;
         transition: all 0.2s;
+        background-color: #ffffff;
+        color: #24292f;
+        font-weight: 500;
     }
 
     .stButton>button:hover {
+        background-color: #f6f8fa;
         border-color: #2ea44f;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    /* Input area */
-    .stTextInput>div>div>input {
-        border-radius: 8px;
-        border: 2px solid #e5e5e5;
-        padding: 12px;
+    .stButton>button[kind="primary"] {
+        background-color: #2ea44f;
+        color: white;
+        border: none;
     }
 
-    /* Sidebar */
-    .css-1d391kg {
+    .stButton>button[kind="primary"]:hover {
+        background-color: #2c974b;
+    }
+
+    /* Chat input - clean and modern */
+    .stChatInput {
+        border-radius: 12px;
+        border: 2px solid #d0d7de;
+        padding: 12px 16px;
+        font-size: 15px;
+    }
+
+    .stChatInput:focus {
+        border-color: #2ea44f;
+        box-shadow: 0 0 0 3px rgba(46, 164, 79, 0.1);
+    }
+
+    /* Sidebar - clean */
+    [data-testid="stSidebar"] {
         background-color: #f7f7f8;
+        border-right: 1px solid #e5e7eb;
     }
 
-    /* Success/Warning/Error messages */
-    .success-msg {
-        background-color: #d4edda;
-        border-left: 4px solid #28a745;
-        padding: 12px;
-        border-radius: 6px;
-        margin: 10px 0;
+    [data-testid="stSidebar"] .element-container {
+        padding: 0.5rem 0;
     }
 
-    .warning-msg {
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
+    /* Metrics - simple cards */
+    [data-testid="stMetric"] {
+        background-color: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
         padding: 12px;
-        border-radius: 6px;
-        margin: 10px 0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
 
-    .error-msg {
-        background-color: #f8d7da;
-        border-left: 4px solid #dc3545;
-        padding: 12px;
+    /* Expander - clean */
+    .streamlit-expanderHeader {
+        background-color: #f6f8fa;
         border-radius: 6px;
-        margin: 10px 0;
+        font-weight: 500;
+    }
+
+    /* Success/Info/Warning/Error - subtle */
+    .stAlert {
+        border-radius: 8px;
+        border-left: 4px solid;
+        padding: 12px 16px;
+    }
+
+    /* Remove extra padding */
+    .element-container {
+        margin: 0;
+    }
+
+    /* Title styling */
+    h1 {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+
+    h2, h3 {
+        font-weight: 600;
+        color: #374151;
+    }
+
+    /* Dataframe styling */
+    .dataframe {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -333,12 +381,15 @@ def display_message(role: str, content: str, metadata: Dict = None):
                 if st.session_state.get(f'show_chart_{metadata.get("timestamp", "")}'):
                     create_chart(df)
 
-            if metadata.get('warnings'):
-                for warning in metadata['warnings']:
+            # Only show warnings/suggestions if they exist and aren't already in content
+            warnings = metadata.get('warnings')
+            if warnings and len(warnings) > 0:
+                for warning in warnings:
                     st.warning(warning)
 
-            if metadata.get('suggestions'):
-                st.info(f"💡 Suggestions: {', '.join(metadata['suggestions'])}")
+            suggestions = metadata.get('suggestions')
+            if suggestions and len(suggestions) > 0:
+                st.info(f"💡 Suggestions: {', '.join(suggestions)}")
 
 
 def create_chart(df: pd.DataFrame):
@@ -390,42 +441,48 @@ async def main():
     """Main application."""
     init_session_state()
 
+    # Auto-initialize on first load
+    if not st.session_state.initialized:
+        with st.spinner("🚀 Initializing Wren AI..."):
+            try:
+                await st.session_state.assistant.initialize()
+                st.session_state.initialized = True
+            except Exception as e:
+                st.error(f"❌ Failed to initialize Wren AI: {str(e)}")
+                st.stop()
+
     # Header
     st.title("🤖 Wren AI Data Assistant")
     st.markdown("Ask questions about your data in natural language")
 
     # Sidebar
     with st.sidebar:
-        st.header("⚙️ Settings")
-
-        # Initialize button
-        if not st.session_state.initialized:
-            if st.button("🚀 Initialize Wren AI", type="primary"):
-                with st.spinner("Initializing Wren AI..."):
-                    await st.session_state.assistant.initialize()
-                    st.session_state.initialized = True
-                    st.success("✅ Ready!")
-                    st.rerun()
-        else:
-            st.success("✅ Wren AI Ready")
+        st.success("✅ Wren AI Ready")
 
         st.markdown("---")
 
         # Statistics
-        if st.session_state.initialized:
-            st.subheader("📊 Schema Info")
-            models = st.session_state.assistant.wren._mdl_models
-            metrics = st.session_state.assistant.wren._mdl_metrics
+        st.subheader("📊 Schema Info")
+        models = st.session_state.assistant.wren._mdl_models
+        metrics = st.session_state.assistant.wren._mdl_metrics
 
+        col1, col2 = st.columns(2)
+        with col1:
             st.metric("Tables", len(models))
+        with col2:
             st.metric("Metrics", len(metrics))
 
-            # Show available tables
-            with st.expander("View Tables"):
-                for model in models[:10]:
-                    st.write(f"• {model.get('name', 'Unknown')}")
-                if len(models) > 10:
-                    st.write(f"... and {len(models) - 10} more")
+        # Show available tables
+        if models:
+            with st.expander("📋 View Tables", expanded=False):
+                for model in models:
+                    name = model.get('name', 'Unknown')
+                    desc = model.get('description', '')
+                    if desc:
+                        st.write(f"**{name}**")
+                        st.caption(desc)
+                    else:
+                        st.write(f"• {name}")
 
         st.markdown("---")
 
@@ -434,7 +491,7 @@ async def main():
         examples = [
             "What was total revenue last month?",
             "Show top 10 customers by orders",
-            "How many active users do we have?",
+            "How many active customers do we have?",
             "What's our average order value?",
             "Show revenue trends by month"
         ]
@@ -450,11 +507,6 @@ async def main():
         if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
-
-    # Main chat area
-    if not st.session_state.initialized:
-        st.info("👈 Click 'Initialize Wren AI' in the sidebar to get started")
-        return
 
     # Display chat messages
     for message in st.session_state.messages:
@@ -485,16 +537,43 @@ async def main():
         # Prepare assistant message
         if response['success']:
             content = response.get('explanation', '✅ Query executed successfully!')
+            # For successful queries, show warnings separately (like result warnings)
+            metadata = {
+                'sql': response.get('sql'),
+                'results': response.get('results'),
+                'warnings': response.get('warnings'),
+                'suggestions': response.get('suggestions'),
+                'timestamp': datetime.now().isoformat()
+            }
         else:
-            content = "❌ Could not answer this question. See details below."
+            # For errors, build a clean combined message
+            error_parts = ["❌ Could not answer this question."]
 
-        metadata = {
-            'sql': response.get('sql'),
-            'results': response.get('results'),
-            'warnings': response.get('warnings'),
-            'suggestions': response.get('suggestions'),
-            'timestamp': datetime.now().isoformat()
-        }
+            warnings = response.get('warnings', [])
+            suggestions = response.get('suggestions', [])
+
+            if warnings:
+                error_parts.append("\n\n**Error Details:**")
+                for warning in warnings:
+                    # Clean up the warning message
+                    clean_warning = warning.replace("❌ ", "").replace("⚠️ ", "")
+                    error_parts.append(f"- {clean_warning}")
+
+            if suggestions:
+                error_parts.append("\n\n**💡 Did you mean:**")
+                for suggestion in suggestions[:5]:  # Limit to top 5
+                    error_parts.append(f"- {suggestion}")
+
+            content = "\n".join(error_parts)
+
+            # Don't include warnings/suggestions in metadata for errors (already in content)
+            metadata = {
+                'sql': response.get('sql') if response.get('sql') else None,
+                'results': None,
+                'warnings': None,  # Already included in content
+                'suggestions': None,  # Already included in content
+                'timestamp': datetime.now().isoformat()
+            }
 
         st.session_state.messages.append({
             'role': 'assistant',
