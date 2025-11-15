@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Environment
+.env
+
+# Documentation (not needed in container)
+*.md
+README.md
+TROUBLESHOOTING.md
+WREN_AI_SETUP.md
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
