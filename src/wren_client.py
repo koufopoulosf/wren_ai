@@ -953,18 +953,181 @@ Response:"""
                 return True
 
             elif response.status_code == 404:
-                logger.warning("⚠️ No MDL deployed - accuracy will be limited")
-                logger.warning("   Deploy MDL via Wren UI for better results")
+                logger.warning("⚠️ No MDL deployed")
+                logger.warning("   Attempting to introspect database schema directly...")
+
+                # Fallback: introspect database schema
+                if self.db_config:
+                    try:
+                        success = await self._introspect_database_schema()
+                        if success:
+                            logger.info("✅ Successfully introspected database schema")
+                            logger.info("   For better accuracy, deploy MDL via Wren UI")
+                            return True
+                    except Exception as db_error:
+                        logger.error(f"❌ Database introspection failed: {db_error}")
+
+                logger.warning("   Bot will work but with limited schema knowledge")
+                logger.warning("   See docs/MDL_USAGE.md for MDL setup instructions")
                 return False
 
             else:
                 logger.warning(f"⚠️ Failed to load MDL: HTTP {response.status_code}")
+                logger.warning("   Attempting to introspect database schema directly...")
+
+                # Fallback: introspect database schema
+                if self.db_config:
+                    try:
+                        success = await self._introspect_database_schema()
+                        if success:
+                            logger.info("✅ Successfully introspected database schema")
+                            return True
+                    except Exception as db_error:
+                        logger.error(f"❌ Database introspection failed: {db_error}")
+
                 return False
 
         except Exception as e:
             logger.warning(f"⚠️ Could not load MDL: {e}")
-            logger.warning("   Bot will work but with reduced accuracy")
-            logger.warning("   See docs/MDL_USAGE.md for setup instructions")
+            logger.warning("   Attempting to introspect database schema directly...")
+
+            # Fallback: introspect database schema
+            if self.db_config:
+                try:
+                    success = await self._introspect_database_schema()
+                    if success:
+                        logger.info("✅ Successfully introspected database schema")
+                        return True
+                except Exception as db_error:
+                    logger.error(f"❌ Database introspection failed: {db_error}")
+
+            logger.warning("   Bot will work but with limited schema knowledge")
+            logger.warning("   See docs/MDL_USAGE.md for MDL setup instructions")
+            return False
+
+    async def _introspect_database_schema(self) -> bool:
+        """
+        Fallback: Introspect database schema directly when MDL unavailable.
+
+        Discovers tables and columns from database information_schema.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info("🔍 Introspecting database schema...")
+
+        try:
+            # Connect to database
+            if self.db_type == "postgres":
+                if not POSTGRES_AVAILABLE:
+                    logger.error("psycopg2 not installed")
+                    return False
+
+                import psycopg2.extras
+                conn = psycopg2.connect(**self.db_config)
+
+            elif self.db_type == "redshift":
+                if not REDSHIFT_AVAILABLE:
+                    logger.error("redshift-connector not installed")
+                    return False
+
+                conn = redshift_connector.connect(**self.db_config)
+
+            else:
+                logger.error(f"Unsupported database type: {self.db_type}")
+                return False
+
+            cursor = conn.cursor()
+
+            # Query to get tables and columns
+            # Works for both PostgreSQL and Redshift
+            query = """
+                SELECT
+                    t.table_schema,
+                    t.table_name,
+                    c.column_name,
+                    c.data_type,
+                    c.ordinal_position
+                FROM information_schema.tables t
+                JOIN information_schema.columns c
+                    ON t.table_schema = c.table_schema
+                    AND t.table_name = c.table_name
+                WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
+                    AND t.table_type = 'BASE TABLE'
+                ORDER BY t.table_schema, t.table_name, c.ordinal_position
+            """
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            # Group by table
+            tables = {}
+            for row in rows:
+                schema, table, column, data_type, position = row
+                table_key = f"{schema}.{table}"
+
+                if table_key not in tables:
+                    tables[table_key] = {
+                        'name': table,
+                        'schema': schema,
+                        'columns': []
+                    }
+
+                tables[table_key]['columns'].append({
+                    'name': column,
+                    'type': data_type,
+                    'position': position
+                })
+
+            cursor.close()
+            conn.close()
+
+            # Convert to MDL format
+            self._mdl_models = []
+            self._mdl_metrics = []
+            self._entities_cache = []
+
+            for table_key, table_info in tables.items():
+                # Create model
+                model = {
+                    'name': table_info['name'],
+                    'table_reference': {
+                        'schema': table_info['schema'],
+                        'table': table_info['name']
+                    },
+                    'columns': table_info['columns'],
+                    'description': f"Table {table_key}"
+                }
+                self._mdl_models.append(model)
+
+                # Add to entities cache
+                entity = {
+                    'name': table_info['name'],
+                    'type': 'model',
+                    'description': f"Table {table_key}",
+                    'columns': len(table_info['columns']),
+                    'aliases': self._generate_aliases(table_info['name'])
+                }
+                self._entities_cache.append(entity)
+
+                # Add columns to entities cache
+                for col in table_info['columns']:
+                    col_entity = {
+                        'name': col['name'],
+                        'type': 'column',
+                        'model': table_info['name'],
+                        'description': f"{col['type']} column in {table_info['name']}",
+                        'aliases': self._generate_aliases(col['name'])
+                    }
+                    self._entities_cache.append(col_entity)
+
+            logger.info(f"✅ Introspected {len(self._mdl_models)} tables")
+            logger.info(f"   - Total entities: {len(self._entities_cache)}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to introspect database: {e}", exc_info=True)
             return False
 
     def _generate_aliases(self, name: str, description: str = "") -> List[str]:
