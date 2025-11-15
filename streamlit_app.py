@@ -456,9 +456,15 @@ async def main():
                 st.error(f"❌ Failed to initialize Wren AI: {str(e)}")
                 st.stop()
 
-    # Header
-    st.title("🤖 Wren AI Data Assistant")
-    st.markdown("Ask questions about your data in natural language")
+    # Header with sidebar toggle
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.title("🤖 Wren AI Data Assistant")
+        st.markdown("Ask questions about your data in natural language")
+    with col2:
+        # Sidebar toggle button
+        if st.button("☰", key="sidebar_toggle", help="Toggle sidebar"):
+            st.rerun()
 
     # Sidebar
     with st.sidebar:
@@ -479,16 +485,38 @@ async def main():
 
         # Show message if no schema loaded
         if len(models) == 0 and len(metrics) == 0:
-            st.info("""
-            🔄 **No schema loaded yet**
+            st.warning("""
+            ⚠️ **No schema loaded**
 
-            The system will auto-discover your database schema on the first question you ask.
+            **Possible causes:**
+            - Wren AI service not running (`WREN_URL`)
+            - Database not connected (check `.env` file)
+            - Invalid database credentials
 
-            Or check if:
-            - Database is connected
-            - Wren AI service is running
-            - MDL is deployed
+            **To fix:**
+            1. Copy `.env.example` to `.env`
+            2. Set your `ANTHROPIC_API_KEY`
+            3. Set your database credentials:
+               - `DB_HOST`, `DB_PORT`, `DB_DATABASE`
+               - `DB_USER`, `DB_PASSWORD`
+            4. Restart the app
+
+            **Or:** Use Docker Compose for auto-setup:
+            ```
+            docker-compose up -d
+            ```
             """)
+
+            # Show current config (masked passwords)
+            with st.expander("🔍 View Current Config"):
+                st.code(f"""
+Database Type: {st.session_state.assistant.config.DB_TYPE}
+Database Host: {st.session_state.assistant.config.DB_HOST}
+Database Port: {st.session_state.assistant.config.DB_PORT}
+Database Name: {st.session_state.assistant.config.DB_DATABASE}
+Database User: {st.session_state.assistant.config.DB_USER}
+Wren AI URL: {st.session_state.assistant.config.WREN_URL}
+                """, language="yaml")
 
         # Show available tables
         if models:

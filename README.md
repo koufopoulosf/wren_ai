@@ -244,13 +244,43 @@ docker-compose restart streamlit-app
 
 ### Database Connection Issues
 
-```bash
-# Test PostgreSQL
-docker-compose exec postgres psql -U wren_user -d analytics
+**"Tables: 0, Metrics: 0" - No Schema Loaded**
 
-# Check if data loaded
-docker-compose exec postgres psql -U wren_user -d analytics -c "SELECT COUNT(*) FROM customers;"
-```
+This means the app couldn't discover your database schema. Check:
+
+1. **View current configuration** - Click "🔍 View Current Config" in the sidebar to see what database settings are being used
+
+2. **Check your `.env` file** - Make sure you have:
+   ```bash
+   # Required database settings
+   DB_TYPE=postgres          # or "redshift"
+   DB_HOST=postgres          # your database host
+   DB_PORT=5432             # your database port
+   DB_DATABASE=analytics    # your database name
+   DB_USER=wren_user        # your database username
+   DB_PASSWORD=wren_password # your database password
+   ```
+
+3. **Test database connection**:
+   ```bash
+   # For Docker Compose setup
+   docker-compose exec postgres psql -U wren_user -d analytics
+
+   # Check if tables exist
+   docker-compose exec postgres psql -U wren_user -d analytics -c "\dt"
+   ```
+
+4. **Check the logs** for specific errors:
+   ```bash
+   docker-compose logs streamlit-app | grep -i "introspect"
+   docker-compose logs streamlit-app | grep -i "error"
+   ```
+
+Common error patterns:
+- **Authentication failed** → Check `DB_USER` and `DB_PASSWORD`
+- **Connection refused** → Check `DB_HOST` and `DB_PORT`
+- **Database does not exist** → Check `DB_DATABASE`
+- **No tables found** → Database might be empty or user lacks permissions
 
 ### Reset Everything
 
