@@ -57,6 +57,24 @@ services:
     networks:
       - wren-network
 
+  # Ollama (local embeddings - replaces OpenAI)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: wren-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - wren-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # Wren AI Service (Claude-powered text-to-SQL)
   wren-ai:
     image: ghcr.io/canner/wren-ai-service:0.29.0
@@ -72,13 +90,15 @@ services:
 
       # API Keys (from .env)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}  # For embeddings only
 
       # Wren Engine
       WREN_ENGINE_ENDPOINT: http://wren-engine:8080
 
       # Qdrant
       QDRANT_HOST: qdrant
+
+      # Ollama (local embeddings)
+      OLLAMA_URL: http://ollama:11434
 
       # Optional: Telemetry
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
@@ -89,6 +109,7 @@ services:
       - wren-engine
       - postgres
       - qdrant
+      - ollama
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5555/health"]
@@ -150,4 +171,6 @@ volumes:
   wren-data:
     driver: local
   qdrant_data:
+    driver: local
+  ollama_data:
     driver: local

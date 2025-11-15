@@ -13,14 +13,14 @@ llm:
   timeout: 120
 
 # Embedder Configuration
-# Using OpenAI for embeddings (required for semantic search)
-# Alternative: Use a local embedding model if preferred
+# Using local Sentence Transformers (no external API required)
+# This runs entirely on your infrastructure
 embedder:
-  provider: openai_embedder
+  provider: ollama_embedder
   models:
-    - model: text-embedding-3-small
+    - model: nomic-embed-text
       kwargs:
-        dimensions: 1536
+        base_url: http://ollama:11434
 
 # Document Store (Vector Database)
 document_store:
@@ -43,7 +43,7 @@ pipeline:
   # Ask pipeline (natural language to SQL)
   ask:
     llm: litellm_llm.claude-sonnet-4-20250514
-    embedder: openai_embedder.text-embedding-3-small
+    embedder: ollama_embedder.nomic-embed-text
     engine: wren_engine
     document_store: qdrant
 

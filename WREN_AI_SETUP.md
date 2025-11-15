@@ -12,8 +12,8 @@ The application was returning **404 errors** for all natural language queries be
 Replaced the incorrect Docker image with the proper Wren AI stack:
 - ✅ **wren-ai-service** (v0.29.0) - AI-powered text-to-SQL using Claude
 - ✅ **Qdrant** - Vector database for semantic search
-- ✅ **Claude (Anthropic)** - LLM for natural language understanding
-- ✅ **OpenAI embeddings** - For semantic similarity (very cheap, ~$0.0001/query)
+- ✅ **Claude (Anthropic)** - LLM for natural language understanding (ONLY external API)
+- ✅ **Ollama** - Local embeddings for semantic search (100% local, no API needed)
 
 ---
 
@@ -25,12 +25,12 @@ User Question
 Streamlit App (port 8501)
     ↓
 Wren AI Service (port 5555)
-    ├─→ Claude API (text-to-SQL via LiteLLM)
-    ├─→ OpenAI API (embeddings for semantic search)
-    ├─→ Qdrant (vector database)
-    └─→ Wren Engine (SQL execution)
+    ├─→ Claude API (text-to-SQL via LiteLLM) ☁️ ONLY external API
+    ├─→ Ollama (local embeddings) 🏠 100% local
+    ├─→ Qdrant (vector database) 🏠 100% local
+    └─→ Wren Engine (SQL execution) 🏠 100% local
          ↓
-    PostgreSQL Database
+    PostgreSQL Database 🏠 100% local
          ↓
     Results back to user
 ```
@@ -39,20 +39,20 @@ Wren AI Service (port 5555)
 
 ## Prerequisites
 
-You need **two API keys**:
+You need **only ONE API key**:
 
-1. **Anthropic API Key** (required)
-   - Get it from: https://console.anthropic.com/
-   - Used for: Natural language to SQL conversion
-   - Model: `claude-sonnet-4-20250514`
+**Anthropic API Key** (required)
+- Get it from: https://console.anthropic.com/
+- Used for: Natural language to SQL conversion
+- Model: `claude-sonnet-4-20250514`
 
-2. **OpenAI API Key** (required for embeddings)
-   - Get it from: https://platform.openai.com/
-   - Used for: Text embeddings only (semantic search)
-   - Model: `text-embedding-3-small`
-   - Cost: ~$0.0001 per query (very cheap)
+**That's it!** Everything else runs 100% locally:
+- ✅ Embeddings: Ollama with `nomic-embed-text` (local, no API)
+- ✅ Vector DB: Qdrant (local)
+- ✅ SQL Engine: Wren Engine (local)
+- ✅ Database: PostgreSQL (local)
 
-> **Note:** If you don't want to use OpenAI for embeddings, you can configure a local embedding model in `wren-ai-config.yaml`. See "Advanced Configuration" below.
+> **First Run:** Ollama will download the `nomic-embed-text` model (~270MB) automatically on first start. This takes ~1-2 minutes depending on your internet speed.
 
 ---
 
@@ -68,10 +68,9 @@ cp .env.example .env
 nano .env  # or use your preferred editor
 ```
 
-Add your keys:
+Add your key:
 ```bash
 ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
-OPENAI_API_KEY=sk-your-openai-key-here
 ```
 
 ### 2. Start the Services
@@ -90,13 +89,21 @@ docker-compose up -d
 docker-compose logs -f wren-ai
 ```
 
-Wait for this message:
+Wait for these messages:
+
+**First, Ollama downloads the embedding model:**
+```
+wren-ollama | pulling manifest
+wren-ollama | pulling nomic-embed-text... 100%
+```
+
+**Then, Wren AI starts:**
 ```
 wren-ai-service | INFO: Application startup complete
 wren-ai-service | INFO: Uvicorn running on http://0.0.0.0:5555
 ```
 
-This usually takes **1-2 minutes** on first start.
+This usually takes **2-3 minutes** on first start (downloading the embedding model adds ~1 minute).
 
 ### 3. Verify Services are Running
 
@@ -108,6 +115,7 @@ docker-compose ps
 # - postgres: healthy
 # - wren-engine: Up
 # - qdrant: Up
+# - ollama: healthy
 # - wren-ai: healthy
 # - streamlit-app: Up
 ```
@@ -183,34 +191,49 @@ Then restart:
 docker-compose restart wren-ai
 ```
 
-### Issue: OpenAI API costs concerns
+### Issue: Ollama not downloading embedding model
 
-The OpenAI API is **only used for embeddings**, which are extremely cheap:
-- ~$0.00002 per 1,000 tokens
-- Average query: ~50 tokens = $0.000001 (one millionth of a dollar)
-- 10,000 queries = ~$0.01 (one cent)
+**Check Ollama logs:**
+```bash
+docker-compose logs ollama
+```
 
-If you still want to avoid OpenAI, see "Advanced Configuration" below.
+**Manually pull the model:**
+```bash
+docker exec -it wren-ollama ollama pull nomic-embed-text
+```
+
+**Verify model is available:**
+```bash
+docker exec -it wren-ollama ollama list
+# Should show: nomic-embed-text
+```
 
 ---
 
 ## Advanced Configuration
 
-### Using a Local Embedding Model
+### Using a Different Embedding Model
 
-Edit `wren-ai-config.yaml` to replace OpenAI embeddings:
+We're already using Ollama with `nomic-embed-text`, but you can use other models:
+
+Edit `wren-ai-config.yaml`:
 
 ```yaml
-# Replace OpenAI embeddings with Sentence Transformers
 embedder:
-  provider: sentence_transformers_embedder
+  provider: ollama_embedder
   models:
-    - model: all-MiniLM-L6-v2  # Local model
+    - model: all-minilm  # Faster, smaller
+      # or model: mxbai-embed-large  # Higher quality
       kwargs:
-        device: cpu  # or "cuda" if you have GPU
+        base_url: http://ollama:11434
 ```
 
-Then remove `OPENAI_API_KEY` from `.env` and restart.
+Then pull the new model:
+```bash
+docker exec -it wren-ollama ollama pull all-minilm
+docker-compose restart wren-ai
+```
 
 ### Using a Different Claude Model
 
@@ -252,25 +275,27 @@ docker-compose up -d
 
 | File | Change |
 |------|--------|
-| `docker-compose.yml` | Added Qdrant, replaced wren-ai image, updated ports |
-| `wren-ai-config.yaml` | **NEW** - Wren AI configuration for Claude |
-| `.env.example` | Added OpenAI API key, updated documentation |
+| `docker-compose.yml` | Added Qdrant, Ollama; replaced wren-ai image; updated to port 5555 |
+| `wren-ai-config.yaml` | **NEW** - Wren AI configuration for Claude + Ollama embeddings |
+| `.env.example` | Updated to require ONLY Anthropic API key (removed OpenAI) |
 
 ---
 
 ## Cost Estimation
 
-**Anthropic (Claude) - Main Cost:**
+**Anthropic (Claude) - Your ONLY Cost:**
 - Text-to-SQL queries: ~1,000-3,000 tokens each
 - Cost: ~$0.003 per query (using Sonnet 4)
 - 100 queries/day = ~$0.30/day = $9/month
 
-**OpenAI (Embeddings) - Minimal Cost:**
-- Embeddings: ~50 tokens per query
-- Cost: ~$0.000001 per query
-- 100 queries/day = ~$0.0001/day = $0.003/month (negligible)
+**Everything Else - FREE:**
+- ✅ Embeddings: Ollama (local, $0)
+- ✅ Vector DB: Qdrant (local, $0)
+- ✅ SQL Engine: Wren Engine (local, $0)
 
-**Total: ~$9-10/month** for moderate use (100 queries/day)
+**Total: ~$9/month** for moderate use (100 queries/day)
+
+> **Infrastructure Cost:** Ollama + Qdrant add ~500MB RAM usage. No GPU required.
 
 ---
 
