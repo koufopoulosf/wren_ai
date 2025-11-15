@@ -51,11 +51,11 @@ services:
       - OLLAMA_HOST=0.0.0.0:11434
     entrypoint: ["/bin/sh", "/ollama-entrypoint.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags > /dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   # Streamlit Data Assistant
   streamlit-app:
