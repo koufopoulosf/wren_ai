@@ -1,0 +1,69 @@
+# Wren AI Configuration
+# Using Anthropic Claude for LLM via LiteLLM
+
+# LLM Configuration (Claude via LiteLLM)
+llm:
+  provider: litellm_llm
+  models:
+    - model: claude-sonnet-4-20250514
+      kwargs:
+        temperature: 0
+        max_tokens: 4096
+        top_p: 1.0
+  timeout: 120
+
+# Embedder Configuration
+# Using local Sentence Transformers (no external API required)
+# This runs entirely on your infrastructure
+embedder:
+  provider: ollama_embedder
+  models:
+    - model: nomic-embed-text
+      kwargs:
+        base_url: http://ollama:11434
+
+# Document Store (Vector Database)
+document_store:
+  provider: qdrant
+  config:
+    host: qdrant
+    port: 6333
+    collection_name: wren_semantics
+
+# Engine Configuration
+engine:
+  provider: wren_engine
+  config:
+    endpoint: http://wren-engine:8080
+    timeout: 60
+
+# Pipeline Configuration
+# This defines how components work together for text-to-SQL
+pipeline:
+  # Ask pipeline (natural language to SQL)
+  ask:
+    llm: litellm_llm.claude-sonnet-4-20250514
+    embedder: ollama_embedder.nomic-embed-text
+    engine: wren_engine
+    document_store: qdrant
+
+  # SQL execution pipeline
+  sql_answer:
+    engine: wren_engine
+
+# General Settings
+settings:
+  host: 0.0.0.0
+  port: 5555
+  log_level: INFO
+
+  # Enable caching for better performance
+  cache:
+    enabled: true
+    ttl: 3600  # 1 hour
+
+  # Langfuse observability (optional)
+  langfuse:
+    enabled: false
+    secret_key: ""
+    public_key: ""
