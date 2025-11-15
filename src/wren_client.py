@@ -1015,26 +1015,34 @@ Response:"""
             True if successful, False otherwise
         """
         logger.info("🔍 Introspecting database schema...")
+        logger.info(f"   Database type: {self.db_type}")
+        logger.info(f"   Database host: {self.db_config.get('host', 'N/A')}")
+        logger.info(f"   Database name: {self.db_config.get('database', 'N/A')}")
 
         try:
             # Connect to database
             if self.db_type == "postgres":
                 if not POSTGRES_AVAILABLE:
-                    logger.error("psycopg2 not installed")
+                    logger.error("❌ psycopg2 not installed - install with: pip install psycopg2-binary")
                     return False
 
+                logger.info("   Connecting to PostgreSQL...")
                 import psycopg2.extras
                 conn = psycopg2.connect(**self.db_config)
+                logger.info("   ✅ Connected successfully!")
 
             elif self.db_type == "redshift":
                 if not REDSHIFT_AVAILABLE:
-                    logger.error("redshift-connector not installed")
+                    logger.error("❌ redshift-connector not installed - install with: pip install redshift-connector")
                     return False
 
+                logger.info("   Connecting to Redshift...")
                 conn = redshift_connector.connect(**self.db_config)
+                logger.info("   ✅ Connected successfully!")
 
             else:
-                logger.error(f"Unsupported database type: {self.db_type}")
+                logger.error(f"❌ Unsupported database type: {self.db_type}")
+                logger.error(f"   Supported types: postgres, redshift")
                 return False
 
             cursor = conn.cursor()
@@ -1121,13 +1129,53 @@ Response:"""
                     }
                     self._entities_cache.append(col_entity)
 
+            if len(self._mdl_models) == 0:
+                logger.warning("⚠️ No tables found in database")
+                logger.warning("   Check that:")
+                logger.warning("   - Database has tables (not empty)")
+                logger.warning("   - User has permissions to view information_schema")
+                logger.warning("   - Schema filters are correct")
+                return False
+
             logger.info(f"✅ Introspected {len(self._mdl_models)} tables")
             logger.info(f"   - Total entities: {len(self._entities_cache)}")
 
             return True
 
+        except ImportError as e:
+            logger.error(f"❌ Missing database driver: {e}")
+            logger.error(f"   Install with: pip install psycopg2-binary  # for PostgreSQL")
+            logger.error(f"             or: pip install redshift-connector  # for Redshift")
+            return False
+        except ConnectionError as e:
+            logger.error(f"❌ Could not connect to database: {e}")
+            logger.error(f"   Check that:")
+            logger.error(f"   - Database host is reachable: {self.db_config.get('host')}")
+            logger.error(f"   - Port is correct: {self.db_config.get('port')}")
+            logger.error(f"   - Database exists: {self.db_config.get('database')}")
+            return False
         except Exception as e:
-            logger.error(f"Failed to introspect database: {e}", exc_info=True)
+            logger.error(f"❌ Failed to introspect database")
+            logger.error(f"   Error type: {type(e).__name__}")
+            logger.error(f"   Error message: {str(e)}")
+            logger.error(f"   Database config:")
+            logger.error(f"   - Type: {self.db_type}")
+            logger.error(f"   - Host: {self.db_config.get('host', 'N/A')}")
+            logger.error(f"   - Port: {self.db_config.get('port', 'N/A')}")
+            logger.error(f"   - Database: {self.db_config.get('database', 'N/A')}")
+            logger.error(f"   - User: {self.db_config.get('user', 'N/A')}")
+
+            # Check for common error patterns
+            error_str = str(e).lower()
+            if 'authentication' in error_str or 'password' in error_str:
+                logger.error("   → Looks like an authentication error - check DB_USER and DB_PASSWORD")
+            elif 'timeout' in error_str or 'timed out' in error_str:
+                logger.error("   → Connection timed out - check DB_HOST and network connectivity")
+            elif 'refused' in error_str:
+                logger.error("   → Connection refused - check DB_PORT and firewall rules")
+            elif 'does not exist' in error_str:
+                logger.error("   → Database or table not found - check DB_DATABASE")
+
             return False
 
     def _generate_aliases(self, name: str, description: str = "") -> List[str]:
