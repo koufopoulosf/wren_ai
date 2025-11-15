@@ -86,21 +86,16 @@ class VectorSearch:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{self.ollama_url}/api/embed",
+                    f"{self.ollama_url}/api/embeddings",
                     json={
                         "model": self.embedding_model,
-                        "input": text
+                        "prompt": text
                     }
                 )
                 response.raise_for_status()
                 result = response.json()
-                # The /api/embed endpoint returns "embeddings" (plural) as an array
-                # For single input, we return the first embedding
-                embeddings = result.get("embeddings") or result.get("embedding")
-                if isinstance(embeddings, list) and len(embeddings) > 0:
-                    # If it's a list of embeddings, get the first one
-                    return embeddings[0] if isinstance(embeddings[0], list) else embeddings
-                return embeddings
+                # The /api/embeddings endpoint returns "embedding" (singular) as a flat array
+                return result["embedding"]
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             raise
