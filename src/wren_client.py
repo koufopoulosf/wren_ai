@@ -184,11 +184,17 @@ Format your response as:
 
 Be conversational and helpful."""
 
-        message = self.anthropic_client.messages.create(
-            model=self.model,
-            max_tokens=200,
-            temperature=0.5,
-            messages=[{"role": "user", "content": prompt}]
+        # Call Claude API (async using executor)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        message = await loop.run_in_executor(
+            None,
+            lambda: self.anthropic_client.messages.create(
+                model=self.model,
+                max_tokens=200,
+                temperature=0.5,
+                messages=[{"role": "user", "content": prompt}]
+            )
         )
 
         clarification = message.content[0].text.strip()
@@ -258,11 +264,17 @@ Keep it friendly and concise (2-3 sentences max).
 
 Response:"""
 
-        message = self.anthropic_client.messages.create(
-            model=self.model,
-            max_tokens=200,
-            temperature=0.5,
-            messages=[{"role": "user", "content": prompt}]
+        # Call Claude API (async using executor)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        message = await loop.run_in_executor(
+            None,
+            lambda: self.anthropic_client.messages.create(
+                model=self.model,
+                max_tokens=200,
+                temperature=0.5,
+                messages=[{"role": "user", "content": prompt}]
+            )
         )
 
         response_text = message.content[0].text.strip()
@@ -455,11 +467,17 @@ Example: ["revenue", "customers"]
 
 Response:"""
 
-            message = self.anthropic_client.messages.create(
-                model=self.model,
-                max_tokens=150,
-                temperature=0.2,
-                messages=[{"role": "user", "content": prompt}]
+            # Call Claude API (async using executor)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            message = await loop.run_in_executor(
+                None,
+                lambda: self.anthropic_client.messages.create(
+                    model=self.model,
+                    max_tokens=150,
+                    temperature=0.2,
+                    messages=[{"role": "user", "content": prompt}]
+                )
             )
 
             response_text = message.content[0].text.strip()
