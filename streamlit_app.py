@@ -29,8 +29,9 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from config import Config
-from wren_client import WrenClient
-from validator import SQLValidator
+from vector_search import VectorSearch
+from sql_generator import SQLGenerator
+from schema_embedder import SchemaEmbedder
 from result_validator import ResultValidator
 from query_explainer import QueryExplainer
 
@@ -199,50 +200,59 @@ class WrenAssistant:
     """Main application class."""
 
     def __init__(self):
-        """Initialize Wren AI assistant."""
+        """Initialize AI assistant."""
         self.config = Config()
-        self.wren = None
-        self.validator = None
+        self.vector_search = None
+        self.sql_generator = None
         self.result_validator = None
         self.explainer = None
         self.initialized = False
+        self.schema_embedded = False
 
     async def initialize(self):
         """Initialize async components."""
         if self.initialized:
             return
 
-        # Initialize Wren AI client
+        # Database config
         db_config = {
             "host": self.config.DB_HOST,
             "port": self.config.DB_PORT,
             "database": self.config.DB_DATABASE,
             "user": self.config.DB_USER,
             "password": self.config.DB_PASSWORD,
-            "sslmode": "require" if self.config.DB_SSL else "prefer"
+            "ssl": "require" if self.config.DB_SSL else "disable"
         }
 
-        self.wren = WrenClient(
-            base_url=self.config.WREN_URL,
-            db_type=self.config.DB_TYPE,
-            db_config=db_config,
-            mdl_hash=self.config.WREN_MDL_HASH,
+        # Initialize vector search
+        self.vector_search = VectorSearch(
+            qdrant_host=self.config.QDRANT_HOST,
+            qdrant_port=self.config.QDRANT_PORT,
+            ollama_url=self.config.OLLAMA_URL,
+            embedding_model=self.config.EMBEDDING_MODEL,
+            collection_name=self.config.VECTOR_COLLECTION
+        )
+
+        # Initialize SQL generator
+        self.sql_generator = SQLGenerator(
             anthropic_client=self.config.anthropic_client,
+            vector_search=self.vector_search,
+            db_config=db_config,
             model=self.config.ANTHROPIC_MODEL
         )
 
-        # Load MDL (or fallback to database introspection)
-        mdl_loaded = await self.wren.load_mdl()
-
-        if not mdl_loaded:
-            logger.warning("⚠️ Schema discovery incomplete - functionality may be limited")
+        # Check if schema is embedded, if not embed it
+        collection_info = self.vector_search.get_collection_info()
+        if collection_info.get('points_count', 0) == 0:
+            logger.info("Schema not embedded yet, embedding now...")
+            schema_embedder = SchemaEmbedder(db_config, self.vector_search)
+            await schema_embedder.refresh_schema_embeddings()
+            self.schema_embedded = True
+            logger.info("✅ Schema embedded successfully")
+        else:
+            logger.info(f"✅ Schema already embedded ({collection_info.get('points_count')} entities)")
 
         # Initialize validators
-        self.validator = SQLValidator(
-            mdl_models=self.wren._mdl_models,
-            mdl_metrics=self.wren._mdl_metrics
-        )
-
         self.result_validator = ResultValidator(
             max_rows_warning=self.config.MAX_ROWS_DISPLAY
         )
@@ -281,47 +291,31 @@ class WrenAssistant:
         }
 
         try:
-            # Step 1: Pre-validate entities
-            is_valid, error_msg, suggestions = await self.wren.validate_question_entities(question)
+            # Generate SQL using vector search + Claude
+            result = await self.sql_generator.ask(question)
 
-            if not is_valid:
-                response['warnings'].append(error_msg)
-                response['suggestions'] = suggestions
-                return response
-
-            # Step 2: Get SQL from Wren AI
-            wren_response = await self.wren.ask_question(question)
-
-            sql = wren_response.get('sql', '')
-            confidence = wren_response.get('confidence', 0.0)
+            sql = result.get('sql', '')
+            results = result.get('results', [])
+            context_used = result.get('context_used', [])
 
             response['sql'] = sql
-            response['confidence'] = confidence
+            response['results'] = results
+            response['confidence'] = 0.9 if context_used else 0.5  # High confidence if context found
+            response['explanation'] = result.get('explanation', '')
 
             if not sql:
                 response['warnings'].append("❌ Could not generate SQL for this question.")
-                response['suggestions'] = wren_response.get('suggestions', [])
                 return response
 
-            # Step 3: Validate SQL
-            is_valid, error_msg = self.validator.validate(sql)
-
-            if not is_valid:
-                response['warnings'].append(error_msg)
-                return response
-
-            # Step 4: Execute SQL
-            results = await self.wren.execute_sql(sql)
-            response['results'] = results
-
-            # Step 5: Validate results
+            # Validate results
             has_warnings, warning_msg = self.result_validator.validate_results(results, sql)
             if has_warnings:
                 response['warnings'].append(warning_msg)
 
-            # Step 6: Generate explanation
-            explanation = await self.explainer.explain_query(question, sql, results[:5])
-            response['explanation'] = explanation
+            # Generate detailed explanation if needed
+            if results:
+                explanation = await self.explainer.explain_query(question, sql, results[:5])
+                response['explanation'] = explanation
 
             response['success'] = True
 
