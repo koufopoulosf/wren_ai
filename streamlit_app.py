@@ -218,7 +218,9 @@ class WrenAssistant:
             base_url=self.config.WREN_URL,
             db_type=self.config.DB_TYPE,
             db_config=db_config,
-            mdl_hash=self.config.WREN_MDL_HASH
+            mdl_hash=self.config.WREN_MDL_HASH,
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
         )
 
         # Load MDL
