@@ -28,7 +28,8 @@ import sys
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 
-from src.config import Config
+# Fixed imports - all without 'src.' prefix
+from config import Config
 from wren_client import WrenClient
 from slack_bot import SlackBot
 from security import RowLevelSecurity
@@ -101,7 +102,7 @@ async def main():
             signing_secret=config.SLACK_SIGNING_SECRET
         )
         
-        # Initialize bot with all components
+        # Initialize bot with all components (now accepts config)
         logger.info("Initializing Slack bot orchestrator...")
         bot = SlackBot(
             app=app,
@@ -110,7 +111,7 @@ async def main():
             explainer=explainer,
             validator=validator,
             export_handler=export_handler,
-            config=config
+            config=config  # Pass config for settings
         )
         
         # Run health check
@@ -118,9 +119,10 @@ async def main():
         if not await wren.health_check():
             logger.error("❌ Wren AI health check failed!")
             logger.error("Please ensure:")
-            logger.error("  1. Wren AI service is running")
+            logger.error("  1. Wren AI service is running: docker-compose ps")
             logger.error("  2. WREN_URL is correct in .env")
             logger.error("  3. Wren AI can connect to Redshift")
+            logger.error("  4. Check Wren AI logs: docker-compose logs wren-ai")
             raise Exception("Wren AI is not healthy - cannot start bot")
         
         # Success! Show startup summary
@@ -142,6 +144,7 @@ async def main():
         logger.info(f"  🔍 Suggestions: {'✅' if config.ENABLE_ALTERNATIVE_SUGGESTIONS else '❌'}")
         logger.info("")
         logger.info("💬 Listening for /ask commands in Slack...")
+        logger.info("💡 Try: /ask How many users do we have?")
         logger.info("="*70)
         logger.info("")
         
@@ -173,11 +176,17 @@ async def main():
         logger.error("="*70)
         logger.error("")
         logger.error("Troubleshooting:")
-        logger.error("  1. Check .env file has all required variables")
+        logger.error("  1. Check .env file has all required variables:")
+        logger.error("     - ANTHROPIC_API_KEY")
+        logger.error("     - SLACK_BOT_TOKEN, SLACK_APP_TOKEN")
+        logger.error("     - REDSHIFT_HOST, REDSHIFT_DATABASE")
+        logger.error("     - USER_ROLES")
         logger.error("  2. Verify Slack tokens are correct")
-        logger.error("  3. Ensure Wren AI service is running")
+        logger.error("  3. Ensure Wren AI service is running:")
+        logger.error("     docker-compose ps")
         logger.error("  4. Verify Redshift credentials and network access")
         logger.error("  5. Check logs above for specific error details")
+        logger.error("  6. Try: docker-compose logs wren-ai")
         logger.error("="*70)
         
         sys.exit(1)
