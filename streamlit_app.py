@@ -208,6 +208,7 @@ class WrenAssistant:
         self.explainer = None
         self.initialized = False
         self.schema_embedded = False
+        self.schema_info = {"tables": [], "relationships": []}
 
     async def initialize(self):
         """Initialize async components."""
@@ -251,6 +252,14 @@ class WrenAssistant:
             logger.info("✅ Schema embedded successfully")
         else:
             logger.info(f"✅ Schema already embedded ({collection_info.get('points_count')} entities)")
+
+        # Load schema info for display
+        schema_embedder = SchemaEmbedder(db_config, self.vector_search)
+        await schema_embedder.connect()
+        try:
+            self.schema_info = await schema_embedder.introspect_schema()
+        finally:
+            await schema_embedder.disconnect()
 
         # Initialize validators
         self.result_validator = ResultValidator(
@@ -476,17 +485,21 @@ async def main():
 
         # Statistics
         st.subheader("📊 Schema Info")
-        models = st.session_state.assistant.wren._mdl_models
-        metrics = st.session_state.assistant.wren._mdl_metrics
+        schema_info = st.session_state.assistant.schema_info
+        tables = schema_info.get("tables", [])
+        relationships = schema_info.get("relationships", [])
+
+        # Get unique table names
+        table_names = list(set([t.get("table_name") for t in tables if t.get("table_name")]))
 
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Tables", len(models))
+            st.metric("Tables", len(table_names))
         with col2:
-            st.metric("Metrics", len(metrics))
+            st.metric("Relationships", len(relationships))
 
         # Show message if no schema loaded
-        if len(models) == 0 and len(metrics) == 0:
+        if len(table_names) == 0:
             st.warning("""
             ⚠️ **No schema loaded**
 
@@ -521,16 +534,33 @@ Wren AI URL: {st.session_state.assistant.config.WREN_URL}
                 """, language="yaml")
 
         # Show available tables
-        if models:
+        if table_names:
             with st.expander("📋 View Tables", expanded=False):
-                for model in models:
-                    name = model.get('name', 'Unknown')
-                    desc = model.get('description', '')
-                    if desc:
-                        st.write(f"**{name}**")
-                        st.caption(desc)
+                # Group columns by table
+                tables_dict = {}
+                for table_row in tables:
+                    table_name = table_row.get("table_name")
+                    if table_name not in tables_dict:
+                        tables_dict[table_name] = {
+                            "comment": table_row.get("table_comment"),
+                            "columns": []
+                        }
+                    tables_dict[table_name]["columns"].append({
+                        "name": table_row.get("column_name"),
+                        "type": table_row.get("data_type"),
+                        "nullable": table_row.get("is_nullable")
+                    })
+
+                for table_name in sorted(tables_dict.keys()):
+                    table_info = tables_dict[table_name]
+                    comment = table_info.get("comment")
+                    column_count = len(table_info.get("columns", []))
+
+                    if comment:
+                        st.write(f"**{table_name}** ({column_count} columns)")
+                        st.caption(comment)
                     else:
-                        st.write(f"• {name}")
+                        st.write(f"• **{table_name}** ({column_count} columns)")
 
         st.markdown("---")
 
