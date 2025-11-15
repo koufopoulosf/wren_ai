@@ -1,8 +1,67 @@
 """
-SQL Validator
+SQL Validator - READ-ONLY Query Enforcement
 
-Validates SQL queries for safety by blocking dangerous operations.
-NOW WITH MDL SCHEMA VALIDATION - validates table/column names exist!
+SECURITY MODEL:
+===============
+This validator enforces READ-ONLY access to the database. NO data modification
+or schema changes are possible through this interface.
+
+PROTECTION LAYERS:
+==================
+1. SELECT-Only Enforcement
+   - Only SELECT and WITH (CTEs) statements allowed
+   - All modification operations blocked
+
+2. Dangerous Keyword Blocking
+   - INSERT, UPDATE, DELETE, MERGE, REPLACE (data modification)
+   - DROP, CREATE, ALTER, TRUNCATE (schema modification)
+   - GRANT, REVOKE (permission changes)
+   - EXEC, CALL, DECLARE (procedural SQL)
+   - COMMIT, ROLLBACK, BEGIN (transaction control)
+   - COPY, UNLOAD (data export to files/S3)
+
+3. SQL Injection Prevention
+   - Stacked queries (;DROP, ;DELETE, etc.)
+   - SQL comments (--, /* */, #)
+   - Command execution attempts
+   - File operation attempts
+   - Database-specific exploits (PostgreSQL, MySQL, SQL Server, Redshift)
+
+4. Multiple Statement Blocking
+   - Only one SQL statement per query
+   - Prevents injection via statement stacking
+
+5. MDL Schema Validation
+   - Validates table names exist in semantic layer
+   - Prevents querying non-existent tables
+   - Suggests corrections for typos
+
+6. Query Size Limits
+   - Maximum 10KB per query
+   - Prevents resource abuse
+
+WHAT'S ALLOWED:
+===============
+✅ SELECT statements (with WHERE, GROUP BY, ORDER BY, LIMIT, etc.)
+✅ WITH (Common Table Expressions / CTEs)
+✅ JOINs (INNER, LEFT, RIGHT, FULL)
+✅ Aggregate functions (SUM, COUNT, AVG, MAX, MIN)
+✅ Window functions (OVER, PARTITION BY, ROW_NUMBER, etc.)
+✅ Subqueries
+
+WHAT'S BLOCKED:
+===============
+❌ Data modification (INSERT, UPDATE, DELETE, MERGE)
+❌ Schema changes (DROP, CREATE, ALTER, TRUNCATE)
+❌ Transactions (BEGIN, COMMIT, ROLLBACK)
+❌ Permissions (GRANT, REVOKE)
+❌ Stored procedures (EXEC, CALL)
+❌ File operations (COPY, UNLOAD, INTO OUTFILE)
+❌ Multiple statements (stacked queries)
+❌ SQL injection patterns
+❌ Tables not in MDL schema
+
+This ensures the data assistant is SAFE for read-only analytics access.
 """
 
 import logging
@@ -28,27 +87,75 @@ class SQLValidator:
     """
 
     # Keywords that should never appear in queries
+    # This ensures READ-ONLY access - no data modification possible
     DANGEROUS_KEYWORDS = [
-        'DROP', 'DELETE', 'INSERT', 'UPDATE',
-        'TRUNCATE', 'ALTER', 'CREATE', 'REPLACE',
-        'GRANT', 'REVOKE', 'EXEC', 'EXECUTE',
-        'CALL', 'DECLARE', 'SET'
+        # Data Modification
+        'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'REPLACE',
+
+        # Schema Modification
+        'DROP', 'CREATE', 'ALTER', 'TRUNCATE', 'RENAME',
+
+        # Permission & Security
+        'GRANT', 'REVOKE', 'DENY',
+
+        # Procedural & System
+        'EXEC', 'EXECUTE', 'CALL', 'DECLARE', 'SET',
+
+        # Transaction Control (read-only doesn't need these)
+        'COMMIT', 'ROLLBACK', 'SAVEPOINT', 'BEGIN',
+
+        # PostgreSQL-specific dangerous functions
+        'COPY',  # Can read/write files
+        'pg_read_file', 'pg_write_file', 'pg_execute',
+
+        # Redshift-specific
+        'UNLOAD',  # Exports data to S3
     ]
 
-    # Suspicious patterns that might indicate SQL injection
+    # Suspicious patterns that might indicate SQL injection or data exfiltration
     INJECTION_PATTERNS = [
+        # Stacked queries (SQL injection)
         r';\s*DROP',
         r';\s*DELETE',
         r';\s*UPDATE',
         r';\s*INSERT',
-        r'--\s*$',  # Comment at end
+        r';\s*CREATE',
+        r';\s*ALTER',
+        r';\s*EXEC',
+
+        # SQL comments (often used for injection)
+        r'--\s*$',  # Line comment at end
         r'/\*.*\*/',  # Block comments
-        r'xp_cmdshell',  # SQL Server command execution
+        r'#',  # MySQL-style comments
+
+        # Command execution
+        r'xp_cmdshell',  # SQL Server
+        r'xp_regread',   # SQL Server registry
+        r'xp_regwrite',  # SQL Server registry
+
+        # File operations
         r'INTO\s+OUTFILE',  # MySQL file writing
-        r'INTO\s+DUMPFILE',
-        r'LOAD_FILE',
+        r'INTO\s+DUMPFILE', # MySQL dump
+        r'LOAD_FILE',       # MySQL file reading
+        r'LOAD\s+DATA',     # MySQL data loading
+
+        # Function-based attacks
         r'eval\s*\(',
         r'exec\s*\(',
+        r'execute\s*\(',
+
+        # PostgreSQL-specific attacks
+        r'pg_read_file',
+        r'pg_write_file',
+        r'pg_execute',
+        r'pg_read_binary_file',
+        r'pg_ls_dir',
+
+        # COPY command (can read/write files)
+        r'\bCOPY\s+',
+
+        # Redshift UNLOAD (exports to S3)
+        r'\bUNLOAD\s*\(',
     ]
 
     def __init__(self, mdl_models: Optional[List[Dict]] = None, mdl_metrics: Optional[List[Dict]] = None):
