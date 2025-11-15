@@ -109,7 +109,7 @@ GROUP BY c.department
 
 ---
 
-## Using MDL with Wren AI Slack Bot
+## Using MDL with Wren AI Streamlit App
 
 ### 1. Set Up MDL in Wren AI
 
@@ -132,7 +132,7 @@ payload = {
 }
 ```
 
-**Current Implementation**: The Slack bot currently doesn't pass `mdl_hash`. This should be added for production use.
+**Current Implementation**: The Streamlit app currently doesn't pass `mdl_hash`. This should be added for production use.
 
 **Recommended Enhancement**:
 ```python
@@ -263,9 +263,9 @@ curl http://wren-ai:8000/v1/models
 **Good Test**: Ask questions that require MDL context:
 
 ```
-/ask What's revenue by department?
-/ask Show me top customers by lifetime value
-/ask What's our conversion rate this month?
+What's revenue by department?
+Show me top customers by lifetime value
+What's our conversion rate this month?
 ```
 
 **Without MDL**: These would be ambiguous or incorrect.
@@ -315,7 +315,7 @@ metrics:
 
 ---
 
-## Recommended Enhancements for This Bot
+## Recommended Enhancements for This App
 
 Based on the research, here are recommended improvements:
 
@@ -359,19 +359,18 @@ async def load_mdl_schema(self):
                 })
 ```
 
-### 3. **Display MDL Metrics in Help**
+### 3. **Display MDL Metrics in UI**
 
 ```python
-# Add /metrics command to show available metrics
-@app.command("/metrics")
-async def show_metrics(ack, command, client):
-    mdl_metrics = await wren.get_available_metrics()
+# Add metrics display in Streamlit sidebar
+def show_available_metrics():
+    """Display available metrics in sidebar"""
+    mdl_metrics = wren.get_available_metrics()
 
-    message = "📊 *Available Metrics:*\n\n"
+    st.sidebar.markdown("### 📊 Available Metrics")
     for metric in mdl_metrics:
-        message += f"• *{metric['name']}*: {metric['description']}\n"
-
-    await client.chat_postMessage(channel=command["channel_id"], text=message)
+        with st.sidebar.expander(metric['name']):
+            st.write(metric['description'])
 ```
 
 ---

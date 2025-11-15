@@ -67,7 +67,7 @@ services:
     networks:
       - wren-network
 
-  # Streamlit Data Assistant (replaces Slack bot)
+  # Streamlit Data Assistant
   streamlit-app:
     build:
       context: .

@@ -315,7 +315,7 @@ For production use:
 
 ## 🎉 What's New in v2.0
 
-- ✨ **Streamlit UI** - Replaced Slack bot with modern web interface
+- ✨ **Streamlit UI** - Modern web interface for data queries
 - 🔒 **READ-ONLY Security** - 6-layer protection with comprehensive SQL validation
 - 🧠 **Schema Validation** - Validates against MDL before execution
 - 🔤 **Entity Aliases** - Auto-generated synonyms for better matching
