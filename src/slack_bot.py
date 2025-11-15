@@ -233,11 +233,8 @@ class SlackBot:
                 )
                 return
 
-            # Get user role info (already fetched above for rate limit check)
-            dept = user_info["department"]
-
             # Log query start
-            QueryLogger.log_query_start(user_id, username, question, dept)
+            QueryLogger.log_query_start(user_id, username, question, role="user")
 
             # NEW: Check if this is a follow-up question
             is_followup = self.context_manager.is_follow_up(question)
@@ -270,10 +267,7 @@ class SlackBot:
 
             # Query Wren AI (with enriched question if follow-up)
             logger.info(f"Querying Wren AI for user {user_id}")
-            wren_response = await self.wren.ask_question(
-                question_for_wren,
-                user_context={"department": dept}
-            )
+            wren_response = await self.wren.ask_question(question_for_wren)
             
             sql = wren_response.get("sql", "")
             confidence = wren_response.get("confidence", 0.0)
@@ -418,7 +412,7 @@ class SlackBot:
             text += "Could you clarify:\n"
             text += "• What specific metric? (revenue, orders, users, etc.)\n"
             text += "• What time period? (today, this week, last month, etc.)\n"
-            text += "• Any filters? (by region, department, status, etc.)"
+            text += "• Any filters? (by region, status, date range, etc.)"
         
         await client.chat_update(channel=channel_id, ts=ts, text=text)
     

@@ -5,8 +5,8 @@ Production-ready bot for querying AWS Redshift data warehouse
 via natural language using Wren AI and Claude Sonnet 4.5.
 
 Features:
-- Natural language to SQL via Wren AI
-- Row-level security (department-based filtering)
+- Natural language to SQL via Wren AI with MDL semantic layer
+- User authorization and access control
 - SQL validation and safety checks
 - Query explanations via Claude
 - CSV/JSON/Chart exports
@@ -96,11 +96,10 @@ async def main():
             logger.warning("⚠️  No MDL deployed - bot will work but with reduced accuracy")
             logger.warning("   See docs/MDL_USAGE.md for setup instructions")
 
-        # Initialize security (RLS)
-        logger.info("Initializing row-level security...")
+        # Initialize security (user authorization)
+        logger.info("Initializing user authorization...")
         rls = RowLevelSecurity(
-            user_roles=config.USER_ROLES,
-            dept_access=config.DEPT_ACCESS
+            user_roles=config.USER_ROLES
         )
         
         # Initialize query explainer (Claude)
@@ -110,9 +109,12 @@ async def main():
             model=config.ANTHROPIC_MODEL
         )
         
-        # Initialize SQL validator
+        # Initialize SQL validator with MDL schema
         logger.info("Initializing SQL validator...")
-        validator = SQLValidator()
+        validator = SQLValidator(
+            mdl_models=wren._mdl_models,
+            mdl_metrics=wren._mdl_metrics
+        )
         
         # Initialize export handler
         logger.info("Initializing export handler...")

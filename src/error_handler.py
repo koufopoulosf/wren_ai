@@ -109,8 +109,7 @@ class ErrorHandler:
         return ("permission",
             "🔒 *Access Denied*\n\n"
             "You don't have permission to access this data.\n\n"
-            "You can only see data for your department.\n"
-            "If you need broader access, please contact your administrator."
+            "Please contact your administrator for access."
         )
 
     def _not_found_error(self, question: str) -> Tuple[str, str]:

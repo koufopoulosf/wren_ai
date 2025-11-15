@@ -111,9 +111,8 @@ class Config:
             os.getenv("RATE_LIMIT_WINDOW_MINUTES", "1")
         )
 
-        # User Roles and Department Access
+        # User Roles (simplified for internal data engineer tool)
         self.USER_ROLES = self._parse_user_roles()
-        self.DEPT_ACCESS = self._parse_department_access()
         
         # Set up logging
         self._setup_logging()
@@ -179,71 +178,47 @@ class Config:
     def _parse_user_roles(self) -> Dict[str, Dict[str, str]]:
         """
         Parse USER_ROLES environment variable.
-        
-        Format: SLACK_USER_ID:ROLE:DEPARTMENT
-        Example: U01ABC:admin:all,U02DEF:analyst:sales
-        
+
+        Format: SLACK_USER_ID:ROLE
+        Example: U01ABC:admin,U02DEF:user
+
         Returns:
             Dictionary mapping Slack user IDs to role information:
-            {
-                'U01ABC': {'role': 'admin', 'department': 'all'},
-                'U02DEF': {'role': 'analyst', 'department': 'sales'}
-            }
+            {'U01ABC': {'role': 'admin'}, 'U02DEF': {'role': 'user'}}
         """
         roles_str = os.getenv("USER_ROLES", "")
         roles = {}
-        
+
         if not roles_str:
             logging.warning("⚠️  No USER_ROLES configured - all users will be denied access")
             return roles
-        
+
         for entry in roles_str.split(","):
             entry = entry.strip()
             if not entry:
                 continue
-            
+
             parts = entry.split(":")
-            if len(parts) == 3:
-                user_id, role, department = parts
-                roles[user_id] = {
-                    "role": role.strip(),
-                    "department": department.strip()
-                }
-                logging.info(f"Loaded user role: {user_id} -> {role}/{department}")
+            if len(parts) == 2:
+                user_id, role = parts
+                roles[user_id] = {"role": role.strip()}
+                logging.info(f"Loaded user role: {user_id} -> {role}")
+            elif len(parts) == 3:
+                # Legacy format (USERID:ROLE:DEPARTMENT) - ignore department
+                user_id, role, _dept = parts
+                roles[user_id] = {"role": role.strip()}
+                logging.info(f"Loaded user role: {user_id} -> {role} (legacy format)")
             else:
                 logging.warning(f"Invalid user role format: {entry}")
-        
+
         logging.info(f"✅ Loaded {len(roles)} user role mappings")
         return roles
-    
-    def _parse_department_access(self) -> Dict[str, list]:
-        """
-        Parse department-specific table access rules.
-        
-        Returns:
-            Dictionary mapping department names to allowed tables:
-            {
-                'sales': ['public.orders', 'public.customers'],
-                'marketing': ['public.campaigns', 'public.leads']
-            }
-        """
-        dept_access = {}
-        
-        # Get all DEPT_ACCESS_* environment variables
-        for key, value in os.environ.items():
-            if key.startswith("DEPT_ACCESS_"):
-                dept_name = key.replace("DEPT_ACCESS_", "").lower()
-                tables = [t.strip() for t in value.split(",") if t.strip()]
-                dept_access[dept_name] = tables
-                logging.info(f"Department access: {dept_name} -> {len(tables)} tables")
-        
-        return dept_access
     
     @property
     def anthropic_client(self) -> Anthropic:
         """
         Get or create Anthropic API client.
-        
+
         Returns:
             Anthropic client instance for Claude API calls
         """
@@ -251,21 +226,6 @@ class Config:
             self._anthropic_client = Anthropic(api_key=self.ANTHROPIC_API_KEY)
             logging.info(f"✅ Anthropic client initialized with model: {self.ANTHROPIC_MODEL}")
         return self._anthropic_client
-    
-    def get_department_tables(self, department: str) -> Optional[list]:
-        """
-        Get list of tables accessible by a department.
-        
-        Args:
-            department: Department name (e.g., 'sales', 'marketing')
-        
-        Returns:
-            List of accessible table names, or None if no restrictions
-        """
-        if department == "all":
-            return None  # Admin access, no restrictions
-        
-        return self.DEPT_ACCESS.get(department.lower(), [])
     
     def validate_configuration(self) -> bool:
         """
