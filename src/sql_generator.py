@@ -167,11 +167,13 @@ class SQLGenerator:
 {question}
 
 ## Instructions
-- Generate ONLY the SQL query, no explanations
+- Generate ONLY a SINGLE SQL query, no explanations
 - Use PostgreSQL syntax
 - Use appropriate JOINs, WHERE clauses, and aggregations
 - Return ONLY the SQL query text
 - Do not include markdown code blocks or backticks
+- Do not use semicolons to separate multiple statements
+- Generate exactly ONE SELECT/INSERT/UPDATE/DELETE statement
 - Make sure the query is valid and executable
 
 SQL Query:"""
@@ -196,6 +198,14 @@ SQL Query:"""
             # Clean up SQL (remove markdown if present)
             if sql.startswith("```"):
                 sql = "\n".join(sql.split("\n")[1:-1])
+
+            # Handle multiple statements: take only the last non-empty statement
+            # This prevents "cannot insert multiple commands into a prepared statement" error
+            if ';' in sql:
+                statements = [s.strip() for s in sql.split(';') if s.strip()]
+                if statements:
+                    sql = statements[-1]  # Use the last statement
+                    logger.warning(f"Multiple SQL statements detected, using only the last one")
 
             logger.info(f"Generated SQL: {sql[:100]}...")
 
