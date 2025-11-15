@@ -11,8 +11,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema:/docker-entrypoint-initdb.d/01-schema
-      - ./database/data:/docker-entrypoint-initdb.d/02-data
+      - ./database/schema/01_create_schema.sql:/docker-entrypoint-initdb.d/01_create_schema.sql
+      - ./database/data/02_insert_data.sql:/docker-entrypoint-initdb.d/02_insert_data.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U wren_user -d analytics"]
       interval: 10s
