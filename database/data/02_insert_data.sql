@@ -616,9 +616,18 @@ BEGIN
             CASE (random() * 100)::INTEGER
                 WHEN 0 THEN 'cancelled'
                 WHEN 1 THEN 'refunded'
-                WHEN 2,3,4 THEN 'pending'
-                WHEN 5,6,7,8 THEN 'processing'
-                WHEN 9,10,11,12,13 THEN 'shipped'
+                WHEN 2 THEN 'pending'
+                WHEN 3 THEN 'pending'
+                WHEN 4 THEN 'pending'
+                WHEN 5 THEN 'processing'
+                WHEN 6 THEN 'processing'
+                WHEN 7 THEN 'processing'
+                WHEN 8 THEN 'processing'
+                WHEN 9 THEN 'shipped'
+                WHEN 10 THEN 'shipped'
+                WHEN 11 THEN 'shipped'
+                WHEN 12 THEN 'shipped'
+                WHEN 13 THEN 'shipped'
                 ELSE 'delivered'
             END,
             total,
