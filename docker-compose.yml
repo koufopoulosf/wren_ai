@@ -65,23 +65,23 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+      - ./init-ollama.sh:/init-ollama.sh:ro
     restart: unless-stopped
     networks:
       - wren-network
-    entrypoint: ["/bin/sh", "-c"]
     command: >
-      "ollama serve &
-       pid=$!;
-       sleep 5;
-       until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do sleep 1; done;
-       ollama pull nomic-embed-text;
-       wait $pid"
+      bash -c "
+      ollama serve &
+      sleep 5 &&
+      ollama pull nomic-embed-text &&
+      wait
+      "
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -s http://localhost:11434/api/tags > /dev/null && ollama list | grep -q nomic-embed-text"]
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:11434/api/tags && ollama list | grep nomic-embed-text"]
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 120s
+      start_period: 90s
 
   # Wren AI Service (Claude-powered text-to-SQL)
   wren-ai:

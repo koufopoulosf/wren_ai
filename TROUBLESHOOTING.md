@@ -29,30 +29,27 @@ docker logs wren-ai-service
 
 The wren-ai-service starts **before** Ollama finishes downloading the embedding model.
 
-**Solution A: Restart with Fresh Volumes (Recommended)**
+**Solution A: Manual Pull (Recommended)**
 ```bash
-# Stop everything and remove volumes
-docker compose down -v
+# Stop everything
+docker compose down
 
-# Start fresh - Ollama will auto-download the model
-docker compose up -d
+# Start only Ollama first
+docker compose up -d ollama
 
-# Watch the progress
+# Wait for Ollama to be ready
 docker compose logs -f ollama
-# Wait for: "success" after pulling nomic-embed-text
-```
+# Wait for: "Listening on [::]:11434"
 
-**Solution B: Manual Pull (if auto-download fails)**
-```bash
-# If Ollama starts but model isn't downloaded
+# Pull the embedding model manually
 docker exec -it wren-ollama ollama pull nomic-embed-text
 
 # Verify model is downloaded
 docker exec -it wren-ollama ollama list
 # Should show: nomic-embed-text
 
-# Restart wren-ai
-docker compose restart wren-ai
+# Now start everything
+docker compose up -d
 ```
 
 **Solution B: Increase Startup Wait Time**
