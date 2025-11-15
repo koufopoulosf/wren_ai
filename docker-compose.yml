@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database (replaces Redshift for testing)
   postgres:
