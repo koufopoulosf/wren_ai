@@ -33,7 +33,8 @@ class Config:
         # Wren AI Configuration
         self.WREN_URL = os.getenv("WREN_URL", "http://wren-ai:8000")
         self.WREN_PROJECT_ID = os.getenv("WREN_PROJECT_ID", "analytics")
-        
+        self.WREN_MDL_HASH = os.getenv("WREN_MDL_HASH")  # Optional - auto-fetched if not set
+
         # Anthropic/Claude Configuration
         self.ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
         if not self.ANTHROPIC_API_KEY:

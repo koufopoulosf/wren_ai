@@ -11,6 +11,8 @@ Improvements:
 import logging
 import asyncio
 import time
+import hashlib
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import httpx
@@ -44,7 +46,8 @@ class WrenClient:
         timeout: int = 30,
         db_type: str = "redshift",
         db_config: Optional[Dict] = None,
-        redshift_config: Optional[Dict] = None  # Deprecated, use db_config
+        redshift_config: Optional[Dict] = None,  # Deprecated, use db_config
+        mdl_hash: Optional[str] = None
     ):
         """
         Initialize Wren AI client with optional database fallback.
@@ -55,6 +58,7 @@ class WrenClient:
             db_type: Database type ("redshift" or "postgres")
             db_config: Optional database connection config for fallback
             redshift_config: Deprecated - use db_config instead
+            mdl_hash: Optional MDL hash for version control (auto-fetched if not provided)
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -67,6 +71,12 @@ class WrenClient:
         # Cache for schema (avoid repeated fetches)
         self._schema_cache = None
         self._entities_cache = []  # List of all entities (tables, columns, metrics)
+
+        # MDL (Model Definition Language) for semantic layer
+        self._mdl = None  # Full MDL structure
+        self.mdl_hash = mdl_hash  # Version hash for MDL
+        self._mdl_models = []  # Extracted models for quick access
+        self._mdl_metrics = []  # Extracted metrics for quick access
 
         # Database fallback (optional) - supports Redshift or Postgres
         self.db_type = db_type.lower()
@@ -128,6 +138,11 @@ class WrenClient:
         # Add optional parameters if needed
         if user_context:
             payload["custom_instruction"] = f"User context: {user_context}"
+
+        # Add MDL hash for semantic layer version control
+        if self.mdl_hash:
+            payload["mdl_hash"] = self.mdl_hash
+            logger.debug(f"Using MDL hash: {self.mdl_hash[:8]}...")
 
         max_retries = 3
         query_id = None
@@ -635,3 +650,131 @@ class WrenClient:
             logger.info(f"{self.db_type.upper()} connection closed")
 
         logger.info("Wren AI client closed")
+
+    async def load_mdl(self):
+        """
+        Load MDL (Model Definition Language) from Wren AI.
+
+        Fetches the deployed semantic layer and extracts models, metrics,
+        and entities for improved accuracy and entity discovery.
+        """
+        try:
+            logger.info("Loading MDL from Wren AI...")
+
+            response = await self.client.get(
+                f"{self.base_url}/v1/models",
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                self._mdl = response.json()
+
+                # Calculate MDL hash for version control
+                if not self.mdl_hash:
+                    self.mdl_hash = self._calculate_hash(self._mdl)
+
+                # Extract models
+                self._mdl_models = self._mdl.get("models", [])
+
+                # Extract metrics
+                self._mdl_metrics = self._mdl.get("metrics", [])
+
+                # Update entities cache for fuzzy matching
+                self._entities_cache = []
+
+                # Add models to entities
+                for model in self._mdl_models:
+                    self._entities_cache.append({
+                        "name": model.get("name", ""),
+                        "type": "model",
+                        "description": model.get("description", ""),
+                        "columns": len(model.get("columns", []))
+                    })
+
+                    # Add columns as entities
+                    for col in model.get("columns", []):
+                        self._entities_cache.append({
+                            "name": col.get("name", ""),
+                            "type": "column",
+                            "model": model.get("name", ""),
+                            "description": col.get("description", "")
+                        })
+
+                # Add metrics to entities
+                for metric in self._mdl_metrics:
+                    self._entities_cache.append({
+                        "name": metric.get("name", ""),
+                        "type": "metric",
+                        "description": metric.get("description", ""),
+                        "baseObject": metric.get("baseObject", "")
+                    })
+
+                logger.info(f"✅ MDL loaded successfully")
+                logger.info(f"   - MDL hash: {self.mdl_hash[:8] if self.mdl_hash else 'N/A'}...")
+                logger.info(f"   - Models: {len(self._mdl_models)}")
+                logger.info(f"   - Metrics: {len(self._mdl_metrics)}")
+                logger.info(f"   - Entities cached: {len(self._entities_cache)}")
+
+                return True
+
+            elif response.status_code == 404:
+                logger.warning("⚠️ No MDL deployed - accuracy will be limited")
+                logger.warning("   Deploy MDL via Wren UI for better results")
+                return False
+
+            else:
+                logger.warning(f"⚠️ Failed to load MDL: HTTP {response.status_code}")
+                return False
+
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load MDL: {e}")
+            logger.warning("   Bot will work but with reduced accuracy")
+            logger.warning("   See docs/MDL_USAGE.md for setup instructions")
+            return False
+
+    def _calculate_hash(self, mdl: Dict) -> str:
+        """
+        Calculate SHA1 hash of MDL for version control.
+
+        Args:
+            mdl: MDL dictionary
+
+        Returns:
+            SHA1 hash string
+        """
+        mdl_str = json.dumps(mdl, sort_keys=True)
+        return hashlib.sha1(mdl_str.encode()).hexdigest()
+
+    def get_available_models(self) -> List[Dict]:
+        """
+        Get list of available data models from MDL.
+
+        Returns:
+            List of model dictionaries with name, description, columns
+        """
+        return [
+            {
+                "name": model.get("name", ""),
+                "description": model.get("description", "No description"),
+                "columns": len(model.get("columns", [])),
+                "primaryKey": model.get("primaryKey", "")
+            }
+            for model in self._mdl_models
+        ]
+
+    def get_available_metrics(self) -> List[Dict]:
+        """
+        Get list of available metrics from MDL.
+
+        Returns:
+            List of metric dictionaries with name, description, baseObject
+        """
+        return [
+            {
+                "name": metric.get("name", ""),
+                "description": metric.get("description", "No description"),
+                "baseObject": metric.get("baseObject", ""),
+                "timeGrain": metric.get("timeGrain", "")
+            }
+            for metric in self._mdl_metrics
+        ]

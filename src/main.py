@@ -82,9 +82,20 @@ async def main():
             base_url=config.WREN_URL,
             timeout=config.MAX_QUERY_TIMEOUT_SECONDS,
             db_type=config.DB_TYPE,
-            db_config=db_config
+            db_config=db_config,
+            mdl_hash=config.WREN_MDL_HASH
         )
-        
+
+        # Load MDL (Model Definition Language) for semantic layer
+        logger.info("Loading MDL (semantic layer)...")
+        mdl_loaded = await wren.load_mdl()
+
+        if mdl_loaded:
+            logger.info(f"✅ MDL loaded: {len(wren._mdl_models)} models, {len(wren._mdl_metrics)} metrics")
+        else:
+            logger.warning("⚠️  No MDL deployed - bot will work but with reduced accuracy")
+            logger.warning("   See docs/MDL_USAGE.md for setup instructions")
+
         # Initialize security (RLS)
         logger.info("Initializing row-level security...")
         rls = RowLevelSecurity(

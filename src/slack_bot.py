@@ -137,6 +137,8 @@ class SlackBot:
     def _register_handlers(self):
         """Register all Slack command and action handlers."""
         self.app.command("/ask")(self.handle_ask)
+        self.app.command("/metrics")(self.handle_metrics)
+        self.app.command("/models")(self.handle_models)
         self.app.action("approve_query")(self.handle_approval)
         self.app.action("cancel_query")(self.handle_cancel)
         self.app.action("export_csv")(self.handle_export_csv)
@@ -839,3 +841,125 @@ class SlackBot:
             user=user_id,
             text="Thanks for your feedback! 🙏"
         )
+
+    async def handle_metrics(self, ack, command, client):
+        """
+        Handle /metrics command - show available metrics from MDL.
+        """
+        await ack()
+
+        user_id = command["user_id"]
+        channel_id = command["channel_id"]
+
+        # Check authorization
+        if not self.rls.is_authorized(user_id):
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="🚫 You are not authorized to use this bot.\n\nPlease contact your administrator for access."
+            )
+            return
+
+        try:
+            metrics = self.wren.get_available_metrics()
+
+            if not metrics:
+                message = (
+                    "📊 *No Metrics Defined*\n\n"
+                    "No metrics are currently defined in the semantic layer.\n\n"
+                    "To improve accuracy, deploy an MDL (Model Definition Language) with metrics.\n"
+                    "See `docs/MDL_USAGE.md` for instructions."
+                )
+            else:
+                message = f"📊 *Available Metrics* ({len(metrics)} total)\n\n"
+
+                for metric in metrics[:20]:  # Limit to 20 to avoid huge messages
+                    name = metric.get("name", "Unknown")
+                    desc = metric.get("description", "No description")
+                    base = metric.get("baseObject", "")
+                    time_grain = metric.get("timeGrain", "")
+
+                    message += f"• *{name}*"
+                    if time_grain:
+                        message += f" (by {time_grain})"
+                    message += f"\n  _{desc}_"
+                    if base:
+                        message += f"\n  Base: `{base}`"
+                    message += "\n\n"
+
+                if len(metrics) > 20:
+                    message += f"\n_... and {len(metrics) - 20} more metrics_"
+
+                message += "\n💡 *Tip:* You can ask questions using these metric names for more accurate results!"
+
+            await client.chat_postMessage(
+                channel=channel_id,
+                text=message
+            )
+
+        except Exception as e:
+            logger.error(f"Error in handle_metrics: {e}", exc_info=True)
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="❌ An error occurred while fetching metrics."
+            )
+
+    async def handle_models(self, ack, command, client):
+        """
+        Handle /models command - show available data models from MDL.
+        """
+        await ack()
+
+        user_id = command["user_id"]
+        channel_id = command["channel_id"]
+
+        # Check authorization
+        if not self.rls.is_authorized(user_id):
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="🚫 You are not authorized to use this bot.\n\nPlease contact your administrator for access."
+            )
+            return
+
+        try:
+            models = self.wren.get_available_models()
+
+            if not models:
+                message = (
+                    "📋 *No Models Defined*\n\n"
+                    "No data models are currently defined in the semantic layer.\n\n"
+                    "To improve accuracy, deploy an MDL (Model Definition Language) with your data models.\n"
+                    "See `docs/MDL_USAGE.md` for instructions."
+                )
+            else:
+                message = f"📋 *Available Data Models* ({len(models)} total)\n\n"
+
+                for model in models[:20]:  # Limit to 20 to avoid huge messages
+                    name = model.get("name", "Unknown")
+                    desc = model.get("description", "No description")
+                    cols = model.get("columns", 0)
+                    pk = model.get("primaryKey", "")
+
+                    message += f"• *{name}*"
+                    if cols:
+                        message += f" ({cols} columns)"
+                    message += f"\n  _{desc}_"
+                    if pk:
+                        message += f"\n  Primary key: `{pk}`"
+                    message += "\n\n"
+
+                if len(models) > 20:
+                    message += f"\n_... and {len(models) - 20} more models_"
+
+                message += "\n💡 *Tip:* You can query these models using natural language with `/ask`"
+
+            await client.chat_postMessage(
+                channel=channel_id,
+                text=message
+            )
+
+        except Exception as e:
+            logger.error(f"Error in handle_models: {e}", exc_info=True)
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="❌ An error occurred while fetching models."
+            )
