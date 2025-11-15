@@ -2,7 +2,7 @@
 
 Modern data query assistant with natural language interface built with **Streamlit**, **Wren AI**, and **Claude**. Ask questions about your data in plain English and get instant answers with SQL, visualizations, and exports.
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.1.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## ✨ Key Features
@@ -70,9 +70,10 @@ Compare revenue between USA and Canada
 ### Test Database (PostgreSQL)
 - ✅ **E-commerce schema**: customers, orders, order_items, products, categories
 - ✅ **Sample data**: 100 customers, 40+ orders, 50 products across 8 categories
-- ✅ **Auto-initialization**: Schema and data loaded automatically on first startup
+- ✅ **Auto-initialization**: Schema and data loaded automatically on startup (even if volume exists)
 - ✅ **Time range**: January-April 2024
 - ✅ **Regions**: USA, UK, Canada
+- ✅ **Zero manual setup**: No need to run SQL scripts manually
 
 ### Semantic Layer (MDL)
 - ✅ **5 models**: Full relationships defined with foreign keys
@@ -267,43 +268,46 @@ nomic-embed-text:latest <id>            274 MB
 
 ### Database Connection Issues
 
-**"Tables: 0, Metrics: 0" - No Schema Loaded**
+**Database Schema Not Loading**
 
-This means the app couldn't discover your database schema. Check:
+The database should auto-initialize on first startup. If tables aren't loading:
 
-1. **View current configuration** - Click "🔍 View Current Config" in the sidebar to see what database settings are being used
-
-2. **Check your `.env` file** - Make sure you have:
+1. **Check database initialization logs**:
    ```bash
-   # Required database settings
-   DB_TYPE=postgres          # or "redshift"
-   DB_HOST=postgres          # your database host
-   DB_PORT=5432             # your database port
-   DB_DATABASE=analytics    # your database name
-   DB_USER=wren_user        # your database username
-   DB_PASSWORD=wren_password # your database password
+   docker-compose logs postgres | grep -i "initialization"
    ```
 
-3. **Test database connection**:
+2. **Verify tables were created**:
    ```bash
-   # For Docker Compose setup
-   docker-compose exec postgres psql -U wren_user -d analytics
-
    # Check if tables exist
    docker-compose exec postgres psql -U wren_user -d analytics -c "\dt"
+
+   # You should see: categories, customers, orders, order_items, products
    ```
 
-4. **Check the logs** for specific errors:
+3. **If tables are missing**, the init script will run automatically. Check:
    ```bash
-   docker-compose logs streamlit-app | grep -i "introspect"
-   docker-compose logs streamlit-app | grep -i "error"
+   # View init script logs
+   docker-compose logs postgres | tail -50
+
+   # Look for messages like:
+   # "✅ Schema created"
+   # "✅ Data inserted"
+   # "🎉 Database initialization complete!"
    ```
 
-Common error patterns:
-- **Authentication failed** → Check `DB_USER` and `DB_PASSWORD`
-- **Connection refused** → Check `DB_HOST` and `DB_PORT`
-- **Database does not exist** → Check `DB_DATABASE`
-- **No tables found** → Database might be empty or user lacks permissions
+4. **Manual re-initialization** (if needed):
+   ```bash
+   # The database checks and initializes automatically on startup
+   # To force re-initialization, remove the volume and restart:
+   docker-compose down -v
+   docker-compose up -d
+   ```
+
+Common issues:
+- **Permission errors** → Check Docker volume permissions
+- **Script not found** → Ensure `scripts/postgres-init.sh` exists
+- **Connection refused** → Wait for postgres to be fully ready (check healthcheck)
 
 ### Reset Everything
 
@@ -368,7 +372,15 @@ For production use:
 - [Claude API Documentation](https://docs.anthropic.com/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 
-## 🎉 What's New in v2.0
+## 🎉 What's New in v2.1
+
+- 🎨 **Claude-like UI** - Clean, centered interface inspired by Claude Code
+- ⚡ **Auto-initialization** - Database schema loads automatically (no manual SQL needed)
+- 🚫 **Removed sidebar** - Cleaner, distraction-free interface focused on chat
+- 💬 **Better interaction flow** - Welcome screen with example queries
+- 📊 **Improved results display** - Cleaner data tables and export options
+
+### Previous (v2.0)
 
 - ✨ **Streamlit UI** - Modern web interface for data queries
 - 🔒 **READ-ONLY Security** - 6-layer protection with comprehensive SQL validation
