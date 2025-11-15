@@ -91,10 +91,14 @@ docker-compose logs -f wren-ai
 
 Wait for these messages:
 
-**First, Ollama downloads the embedding model:**
+**First, Ollama starts and downloads the embedding model:**
 ```
 wren-ollama | pulling manifest
-wren-ollama | pulling nomic-embed-text... 100%
+wren-ollama | pulling f02dd72bb242... 100%
+wren-ollama | pulling c71d239df917... 100%
+wren-ollama | verifying sha256 digest
+wren-ollama | writing manifest
+wren-ollama | success
 ```
 
 **Then, Wren AI starts:**
@@ -103,7 +107,7 @@ wren-ai-service | INFO: Application startup complete
 wren-ai-service | INFO: Uvicorn running on http://0.0.0.0:5555
 ```
 
-This usually takes **2-3 minutes** on first start (downloading the embedding model adds ~1 minute).
+This usually takes **2-3 minutes** on first start (downloading the embedding model ~270MB).
 
 ### 3. Verify Services are Running
 
