@@ -48,8 +48,12 @@ st.markdown("""
     /* Hide Streamlit default elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     .stDeployButton {display: none;}
+
+    /* Keep header visible for sidebar toggle */
+    header[data-testid="stHeader"] {
+        background-color: transparent;
+    }
 
     /* Main container */
     .main {
