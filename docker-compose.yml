@@ -21,29 +21,6 @@ services:
     networks:
       - wren-network
 
-  # Wren Engine (Java-based query engine)
-  wren-engine:
-    image: ghcr.io/canner/wren-engine:latest
-    container_name: wren-engine
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./database/mdl:/usr/src/app/etc
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-    environment:
-      MAX_HEAP_SIZE: 1638m
-      MIN_HEAP_SIZE: 1638m
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - wren-network
-
   # Qdrant Vector Database (for semantic search)
   qdrant:
     image: qdrant/qdrant:latest
@@ -89,55 +66,6 @@ services:
       retries: 40
       start_period: 300s
 
-  # Wren AI Service (Claude-powered text-to-SQL)
-  wren-ai:
-    image: ghcr.io/canner/wren-ai-service:0.29.0
-    container_name: wren-ai-service
-    ports:
-      - "5555:5555"
-    environment:
-      # Python
-      PYTHONUNBUFFERED: 1
-
-      # Wren AI Configuration
-      CONFIG_PATH: /app/config.yaml
-
-      # API Keys (from .env)
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-
-      # Wren Engine
-      WREN_ENGINE_ENDPOINT: http://wren-engine:8080
-
-      # Qdrant
-      QDRANT_HOST: qdrant
-
-      # Ollama (local embeddings)
-      OLLAMA_URL: http://ollama:11434
-
-      # Optional: Telemetry
-      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
-    volumes:
-      - ./wren-ai-config.yaml:/app/config.yaml:ro
-      - ./database/mdl:/app/mdl:ro
-    depends_on:
-      wren-engine:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
-      ollama:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5555/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 180s  # AI service takes longer (especially on first run)
-    networks:
-      - wren-network
-
   # Streamlit Data Assistant
   streamlit-app:
     build:
@@ -147,9 +75,6 @@ services:
     ports:
       - "8501:8501"
     environment:
-      # Wren AI Configuration
-      WREN_URL: http://wren-ai:5555
-      WREN_PROJECT_ID: analytics
       # Database Configuration
       DB_TYPE: postgres
       DB_HOST: postgres
@@ -158,7 +83,12 @@ services:
       DB_USER: wren_user
       DB_PASSWORD: wren_password
       DB_SSL: "false"
-      # Anthropic API (for explanations)
+      # Vector Search Configuration
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      OLLAMA_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      # Anthropic API (for SQL generation)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_MODEL: claude-sonnet-4-20250514
       # App Settings
@@ -168,7 +98,11 @@ services:
       ENABLE_JSON_EXPORT: "true"
       ENABLE_CHARTS: "true"
     depends_on:
-      wren-ai:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ollama:
         condition: service_healthy
     volumes:
       - ./src:/app/src
@@ -185,8 +119,6 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
-  wren-data:
     driver: local
   qdrant_data:
     driver: local

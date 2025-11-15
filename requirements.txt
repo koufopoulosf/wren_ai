@@ -21,19 +21,14 @@ numpy
 plotly
 kaleido
 
-# Database connectors (for direct queries if needed)
+# Database connectors
 redshift-connector  # For Redshift
-psycopg2-binary  # For Postgres
+psycopg2-binary  # For Postgres (sync)
+asyncpg  # For Postgres (async - for schema introspection)
 
-# Fuzzy string matching (for suggestions)
-fuzzywuzzy
-python-Levenshtein
+# Vector database and embeddings
+qdrant-client  # Qdrant vector database client
+httpx  # Already included above for Ollama API calls
 
 # SQL parsing (for schema validation)
 sqlparse
-
-# Testing
-pytest
-pytest-asyncio
-pytest-mock
-pytest-cov
