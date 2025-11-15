@@ -90,11 +90,68 @@ Provide only the explanation, no other text or formatting."""
             logger.debug(f"Explanation: {explanation}")
             
             return explanation
-        
+
         except Exception as e:
             logger.error(f"❌ Failed to generate explanation: {e}", exc_info=True)
-            
+
             # Fallback to basic explanation
+            return self._basic_explanation(sql)
+
+    async def explain_query(self, question: str, sql: str, sample_results: list = None) -> str:
+        """
+        Generate explanation of query in context of user's question.
+
+        Args:
+            question: User's natural language question
+            sql: Generated SQL query
+            sample_results: Optional sample of query results
+
+        Returns:
+            Natural language explanation
+        """
+        # Enhanced prompt with context
+        context = f"User asked: '{question}'"
+
+        if sample_results and len(sample_results) > 0:
+            result_summary = f"\nThe query returned {len(sample_results)} row(s)."
+        else:
+            result_summary = ""
+
+        prompt = f"""{context}
+
+Explain this SQL query in 1-2 simple sentences that directly answer the user's question.
+Focus on what data is being retrieved and how it answers their question.
+{result_summary}
+
+SQL:
+```sql
+{sql}
+```
+
+Provide only the explanation in plain English."""
+
+        try:
+            logger.info("Generating contextual SQL explanation with Claude")
+
+            # Call Claude API
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=250,
+                temperature=0.3,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+
+            explanation = message.content[0].text.strip()
+            explanation = explanation.replace('**', '').replace('*', '')
+
+            logger.info(f"✅ Generated contextual explanation")
+            return explanation
+
+        except Exception as e:
+            logger.error(f"❌ Failed to generate contextual explanation: {e}", exc_info=True)
             return self._basic_explanation(sql)
     
     def _basic_explanation(self, sql: str) -> str:

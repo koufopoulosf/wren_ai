@@ -1,24 +1,51 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database (replaces Redshift for testing)
+  postgres:
+    image: postgres:15-alpine
+    container_name: wren-postgres
+    environment:
+      POSTGRES_DB: analytics
+      POSTGRES_USER: wren_user
+      POSTGRES_PASSWORD: wren_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema:/docker-entrypoint-initdb.d/01-schema
+      - ./database/data:/docker-entrypoint-initdb.d/02-data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wren_user -d analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wren-network
+
+  # Wren AI Service (updated for PostgreSQL)
   wren-ai:
     image: ghcr.io/canner/wren-ai:latest
+    container_name: wren-ai-service
     ports:
       - "8000:8000"
     environment:
       WREN_LLM_PROVIDER: anthropic
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      # AWS Redshift connection for Wren AI
-      DB_TYPE: redshift
-      DB_HOST: ${REDSHIFT_HOST}
-      DB_PORT: ${REDSHIFT_PORT}
-      DB_NAME: ${REDSHIFT_DATABASE}
-      DB_USER: ${REDSHIFT_USER}
-      DB_PASSWORD: ${REDSHIFT_PASSWORD}
-      # Optional: SSL configuration for Redshift
-      DB_SSL: ${DB_SSL:-true}
+      # PostgreSQL connection
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: analytics
+      DB_USER: wren_user
+      DB_PASSWORD: wren_password
+      DB_SSL: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - wren-data:/app/data
+      - ./database/mdl:/app/mdl
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -29,31 +56,52 @@ services:
     networks:
       - wren-network
 
-  bot:
-    build: .
+  # Streamlit Data Assistant (replaces Slack bot)
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wren-streamlit-app
+    ports:
+      - "8501:8501"
+    environment:
+      # Wren AI Configuration
+      WREN_URL: http://wren-ai:8000
+      WREN_PROJECT_ID: analytics
+      # Database Configuration
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: analytics
+      DB_USER: wren_user
+      DB_PASSWORD: wren_password
+      DB_SSL: "false"
+      # Anthropic API (for explanations)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: claude-sonnet-4-20250514
+      # App Settings
+      MAX_ROWS_DISPLAY: 100
+      MAX_ROWS_EXPORT: 10000
+      ENABLE_CSV_EXPORT: "true"
+      ENABLE_JSON_EXPORT: "true"
+      ENABLE_CHARTS: "true"
     depends_on:
       wren-ai:
         condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      WREN_URL: http://wren-ai:8000
     volumes:
-      # Mount logs directory for easy access
+      - ./src:/app/src
+      - ./streamlit_app.py:/app/streamlit_app.py
       - ./logs:/app/logs
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
     networks:
       - wren-network
-
-volumes:
-  wren-data:
-    driver: local
 
 networks:
   wren-network:
     driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  wren-data:
+    driver: local

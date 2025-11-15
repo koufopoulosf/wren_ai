@@ -1,6 +1,5 @@
-# Slack SDK
-slack-bolt>=1.18.0
-slack-sdk>=3.23.0
+# Streamlit UI
+streamlit>=1.31.0
 
 # Async support
 aiohttp>=3.9.0
@@ -29,6 +28,9 @@ psycopg2-binary>=2.9.0  # For Postgres
 # Fuzzy string matching (for suggestions)
 fuzzywuzzy>=0.18.0
 python-Levenshtein>=0.21.0
+
+# SQL parsing (for schema validation)
+sqlparse>=0.4.4
 
 # Testing
 pytest>=7.4.0

@@ -1,0 +1,327 @@
+{
+  "models": [
+    {
+      "name": "customers",
+      "description": "Customer master data with demographics and segments",
+      "table": "customers",
+      "primaryKey": "customer_id",
+      "columns": [
+        {
+          "name": "customer_id",
+          "type": "integer",
+          "description": "Unique customer identifier"
+        },
+        {
+          "name": "customer_name",
+          "type": "string",
+          "description": "Customer full name"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "description": "Customer email address"
+        },
+        {
+          "name": "country",
+          "type": "string",
+          "description": "Customer country"
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "description": "Customer geographic region"
+        },
+        {
+          "name": "city",
+          "type": "string",
+          "description": "Customer city"
+        },
+        {
+          "name": "signup_date",
+          "type": "date",
+          "description": "Date when customer signed up"
+        },
+        {
+          "name": "customer_segment",
+          "type": "string",
+          "description": "Customer segment: Premium, Standard, or Basic"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "description": "Whether customer account is active"
+        }
+      ]
+    },
+    {
+      "name": "orders",
+      "description": "Order transactions with status and amounts",
+      "table": "orders",
+      "primaryKey": "order_id",
+      "columns": [
+        {
+          "name": "order_id",
+          "type": "integer",
+          "description": "Unique order identifier"
+        },
+        {
+          "name": "customer_id",
+          "type": "integer",
+          "description": "Reference to customer"
+        },
+        {
+          "name": "order_date",
+          "type": "timestamp",
+          "description": "When the order was placed"
+        },
+        {
+          "name": "order_status",
+          "type": "string",
+          "description": "Order status: pending, completed, cancelled, refunded"
+        },
+        {
+          "name": "total_amount",
+          "type": "decimal",
+          "description": "Total order amount including discounts and shipping"
+        },
+        {
+          "name": "discount_amount",
+          "type": "decimal",
+          "description": "Total discount applied to order"
+        },
+        {
+          "name": "shipping_cost",
+          "type": "decimal",
+          "description": "Shipping cost for order"
+        },
+        {
+          "name": "payment_method",
+          "type": "string",
+          "description": "Payment method used: credit_card, paypal, bank_transfer"
+        },
+        {
+          "name": "shipping_country",
+          "type": "string",
+          "description": "Country where order is shipped"
+        },
+        {
+          "name": "shipping_region",
+          "type": "string",
+          "description": "Region where order is shipped"
+        }
+      ],
+      "relationships": [
+        {
+          "name": "customer",
+          "joinType": "manyToOne",
+          "targetModel": "customers",
+          "joinKeys": {
+            "customer_id": "customer_id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "order_items",
+      "description": "Individual line items within orders",
+      "table": "order_items",
+      "primaryKey": "order_item_id",
+      "columns": [
+        {
+          "name": "order_item_id",
+          "type": "integer",
+          "description": "Unique order item identifier"
+        },
+        {
+          "name": "order_id",
+          "type": "integer",
+          "description": "Reference to parent order"
+        },
+        {
+          "name": "product_id",
+          "type": "integer",
+          "description": "Reference to product"
+        },
+        {
+          "name": "quantity",
+          "type": "integer",
+          "description": "Quantity ordered"
+        },
+        {
+          "name": "unit_price",
+          "type": "decimal",
+          "description": "Price per unit at time of order"
+        },
+        {
+          "name": "discount_amount",
+          "type": "decimal",
+          "description": "Discount applied to this line item"
+        },
+        {
+          "name": "subtotal",
+          "type": "decimal",
+          "description": "Line item total (quantity * unit_price - discount)"
+        }
+      ],
+      "relationships": [
+        {
+          "name": "order",
+          "joinType": "manyToOne",
+          "targetModel": "orders",
+          "joinKeys": {
+            "order_id": "order_id"
+          }
+        },
+        {
+          "name": "product",
+          "joinType": "manyToOne",
+          "targetModel": "products",
+          "joinKeys": {
+            "product_id": "product_id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "products",
+      "description": "Product catalog with pricing and inventory",
+      "table": "products",
+      "primaryKey": "product_id",
+      "columns": [
+        {
+          "name": "product_id",
+          "type": "integer",
+          "description": "Unique product identifier"
+        },
+        {
+          "name": "product_name",
+          "type": "string",
+          "description": "Product name"
+        },
+        {
+          "name": "category_id",
+          "type": "integer",
+          "description": "Reference to product category"
+        },
+        {
+          "name": "price",
+          "type": "decimal",
+          "description": "Current selling price"
+        },
+        {
+          "name": "cost",
+          "type": "decimal",
+          "description": "Product cost (for profit calculations)"
+        },
+        {
+          "name": "stock_quantity",
+          "type": "integer",
+          "description": "Current inventory level"
+        }
+      ],
+      "relationships": [
+        {
+          "name": "category",
+          "joinType": "manyToOne",
+          "targetModel": "categories",
+          "joinKeys": {
+            "category_id": "category_id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "categories",
+      "description": "Product categories for organization",
+      "table": "categories",
+      "primaryKey": "category_id",
+      "columns": [
+        {
+          "name": "category_id",
+          "type": "integer",
+          "description": "Unique category identifier"
+        },
+        {
+          "name": "category_name",
+          "type": "string",
+          "description": "Category name"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Category description"
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "name": "total_revenue",
+      "description": "Total revenue from completed orders",
+      "baseObject": "orders",
+      "dimension": [],
+      "measure": {
+        "type": "sum",
+        "column": "total_amount"
+      },
+      "timeGrain": "day",
+      "filter": "order_status = 'completed'"
+    },
+    {
+      "name": "order_count",
+      "description": "Total number of orders",
+      "baseObject": "orders",
+      "dimension": [],
+      "measure": {
+        "type": "count",
+        "column": "*"
+      },
+      "timeGrain": "day"
+    },
+    {
+      "name": "avg_order_value",
+      "description": "Average order value for completed orders",
+      "baseObject": "orders",
+      "dimension": [],
+      "measure": {
+        "type": "avg",
+        "column": "total_amount"
+      },
+      "timeGrain": "day",
+      "filter": "order_status = 'completed'"
+    },
+    {
+      "name": "active_customers",
+      "description": "Number of active customers",
+      "baseObject": "customers",
+      "dimension": [],
+      "measure": {
+        "type": "count",
+        "column": "*"
+      },
+      "filter": "is_active = true"
+    },
+    {
+      "name": "total_discounts",
+      "description": "Total discount amount given",
+      "baseObject": "orders",
+      "dimension": [],
+      "measure": {
+        "type": "sum",
+        "column": "discount_amount"
+      },
+      "timeGrain": "day"
+    },
+    {
+      "name": "products_sold",
+      "description": "Total quantity of products sold",
+      "baseObject": "order_items",
+      "dimension": [],
+      "measure": {
+        "type": "sum",
+        "column": "quantity"
+      },
+      "timeGrain": "day"
+    }
+  ]
+}

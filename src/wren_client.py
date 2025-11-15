@@ -104,10 +104,54 @@ class WrenClient:
 
         self._last_request_time = datetime.now()
     
+    async def validate_question_entities(self, question: str) -> Tuple[bool, str, List[str]]:
+        """
+        Pre-validate entities in question before calling Wren AI.
+
+        Args:
+            question: Natural language question
+
+        Returns:
+            (is_valid, error_message, suggestions)
+        """
+        # Extract entities from question
+        mentioned_entities = await self._extract_entities_from_question(question)
+
+        if not mentioned_entities:
+            # No specific entities detected - let Wren AI handle it
+            return True, "", []
+
+        # Validate entities
+        found, missing = await self._validate_entities(mentioned_entities)
+
+        if missing:
+            # Some entities don't exist - provide helpful error
+            error_msg = f"⚠️ *Entity Not Found*\n\n"
+            error_msg += f"Could not find: {', '.join(f'`{e}`' for e in missing)}\n\n"
+
+            # Suggest similar entities
+            suggestions = []
+            for entity in missing:
+                best_match = self._fuzzy_find_entity(entity)
+                if best_match and best_match['score'] > 50:
+                    suggestions.append(best_match['entity']['name'])
+
+            if suggestions:
+                error_msg += f"Did you mean: {', '.join(f'`{s}`' for s in suggestions)}?"
+            else:
+                # Show available entities
+                available = [e['name'] for e in self._entities_cache[:10]]
+                if available:
+                    error_msg += f"Available entities: {', '.join(f'`{a}`' for a in available)}"
+
+            return False, error_msg, suggestions
+
+        logger.info(f"✅ Pre-validation passed - all entities exist")
+        return True, "", []
+
     async def ask_question(
         self,
         question: str,
-        user_context: Optional[Dict] = None,
         max_wait: int = 30
     ) -> Dict:
         """
@@ -115,7 +159,6 @@ class WrenClient:
 
         Args:
             question: Natural language question
-            user_context: Optional context (department, etc.)
             max_wait: Maximum seconds to wait for response
 
         Returns:
@@ -134,10 +177,6 @@ class WrenClient:
         payload = {
             "query": question
         }
-
-        # Add optional parameters if needed
-        if user_context:
-            payload["custom_instruction"] = f"User context: {user_context}"
 
         # Add MDL hash for semantic layer version control
         if self.mdl_hash:
@@ -320,35 +359,57 @@ class WrenClient:
     
     def _fuzzy_find_entity(self, search_term: str) -> Optional[Dict]:
         """
-        Find best matching entity using fuzzy matching.
-        
+        Find best matching entity using fuzzy matching (including aliases).
+
         Returns:
-            {'entity': str, 'type': str, 'score': int} or None
+            {'entity': dict, 'type': str, 'score': int} or None
         """
         if not self._entities_cache:
             return None
-        
-        # Get all entity names
-        entity_names = [e['name'] for e in self._entities_cache]
-        
-        # Fuzzy match
-        result = process.extractOne(
-            search_term.lower(),
-            entity_names,
-            scorer=fuzz.token_sort_ratio
-        )
-        
-        if result:
-            best_match, score = result[0], result[1]
-            # Find full entity info
-            for entity in self._entities_cache:
-                if entity['name'] == best_match:
-                    return {
-                        'entity': best_match,
-                        'type': entity['type'],
-                        'score': score
-                    }
-        
+
+        search_lower = search_term.lower()
+        best_match = None
+        best_score = 0
+
+        for entity in self._entities_cache:
+            # Check exact match on name first
+            if entity['name'].lower() == search_lower:
+                return {
+                    'entity': entity,
+                    'type': entity['type'],
+                    'score': 100
+                }
+
+            # Check exact match on aliases
+            aliases = entity.get('aliases', [])
+            if search_lower in aliases:
+                return {
+                    'entity': entity,
+                    'type': entity['type'],
+                    'score': 95  # Slightly lower than exact name match
+                }
+
+            # Fuzzy match on name
+            name_score = fuzz.token_sort_ratio(search_lower, entity['name'].lower())
+
+            # Fuzzy match on aliases
+            alias_scores = [fuzz.token_sort_ratio(search_lower, alias) for alias in aliases]
+            max_alias_score = max(alias_scores) if alias_scores else 0
+
+            # Take the best score
+            score = max(name_score, max_alias_score)
+
+            if score > best_score:
+                best_score = score
+                best_match = entity
+
+        if best_match and best_score > 50:  # Minimum threshold
+            return {
+                'entity': best_match,
+                'type': best_match['type'],
+                'score': best_score
+            }
+
         return None
     
     async def search_similar_entities(
@@ -684,30 +745,36 @@ class WrenClient:
 
                 # Add models to entities
                 for model in self._mdl_models:
-                    self._entities_cache.append({
+                    entity = {
                         "name": model.get("name", ""),
                         "type": "model",
                         "description": model.get("description", ""),
-                        "columns": len(model.get("columns", []))
-                    })
+                        "columns": len(model.get("columns", [])),
+                        "aliases": self._generate_aliases(model.get("name", ""), model.get("description", ""))
+                    }
+                    self._entities_cache.append(entity)
 
                     # Add columns as entities
                     for col in model.get("columns", []):
-                        self._entities_cache.append({
+                        entity = {
                             "name": col.get("name", ""),
                             "type": "column",
                             "model": model.get("name", ""),
-                            "description": col.get("description", "")
-                        })
+                            "description": col.get("description", ""),
+                            "aliases": self._generate_aliases(col.get("name", ""), col.get("description", ""))
+                        }
+                        self._entities_cache.append(entity)
 
                 # Add metrics to entities
                 for metric in self._mdl_metrics:
-                    self._entities_cache.append({
+                    entity = {
                         "name": metric.get("name", ""),
                         "type": "metric",
                         "description": metric.get("description", ""),
-                        "baseObject": metric.get("baseObject", "")
-                    })
+                        "baseObject": metric.get("baseObject", ""),
+                        "aliases": self._generate_aliases(metric.get("name", ""), metric.get("description", ""))
+                    }
+                    self._entities_cache.append(entity)
 
                 logger.info(f"✅ MDL loaded successfully")
                 logger.info(f"   - MDL hash: {self.mdl_hash[:8] if self.mdl_hash else 'N/A'}...")
@@ -731,6 +798,64 @@ class WrenClient:
             logger.warning("   Bot will work but with reduced accuracy")
             logger.warning("   See docs/MDL_USAGE.md for setup instructions")
             return False
+
+    def _generate_aliases(self, name: str, description: str = "") -> List[str]:
+        """
+        Generate common aliases/synonyms for an entity.
+
+        Creates variations like:
+        - total_revenue -> revenue, total revenue, rev
+        - order_count -> orders, order count, num orders
+
+        Args:
+            name: Entity name
+            description: Optional description to extract keywords from
+
+        Returns:
+            List of aliases
+        """
+        if not name:
+            return []
+
+        aliases = []
+        name_lower = name.lower()
+
+        # Add variations of the name
+        # Remove common prefixes
+        for prefix in ['total_', 'num_', 'count_', 'avg_', 'sum_', 'max_', 'min_']:
+            if name_lower.startswith(prefix):
+                aliases.append(name_lower.replace(prefix, ''))
+
+        # Replace underscores with spaces
+        if '_' in name_lower:
+            aliases.append(name_lower.replace('_', ' '))
+
+        # Common abbreviations
+        abbreviations = {
+            'revenue': ['rev', 'sales', 'income'],
+            'customer': ['cust', 'client'],
+            'order': ['orders', 'purchase', 'purchases'],
+            'user': ['users', 'member', 'members'],
+            'count': ['num', 'number', 'total'],
+            'average': ['avg', 'mean'],
+            'quantity': ['qty', 'amount'],
+            'price': ['cost', 'value'],
+        }
+
+        # Add abbreviations if name contains these words
+        for word, abbrevs in abbreviations.items():
+            if word in name_lower:
+                aliases.extend(abbrevs)
+                # Also add variants with the word replaced
+                for abbrev in abbrevs:
+                    aliases.append(name_lower.replace(word, abbrev))
+
+        # Remove duplicates and the original name
+        aliases = list(set(aliases))
+        if name_lower in aliases:
+            aliases.remove(name_lower)
+
+        return aliases[:10]  # Limit to 10 aliases per entity
 
     def _calculate_hash(self, mdl: Dict) -> str:
         """

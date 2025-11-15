@@ -18,9 +18,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY src/ ./src/
+COPY streamlit_app.py .
 
 # Create logs directory
 RUN mkdir -p /app/logs && chmod 777 /app/logs
 
-# Run bot with unbuffered output for better logging
-CMD ["python", "-u", "src/main.py"]
+# Expose Streamlit port
+EXPOSE 8501
+
+# Run Streamlit app
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
