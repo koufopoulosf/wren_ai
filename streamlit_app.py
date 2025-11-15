@@ -311,6 +311,88 @@ class WrenAssistant:
 
         self.initialized = True
 
+    async def classify_question(self, question: str) -> Dict[str, Any]:
+        """
+        Classify whether the question is about the data or about the system.
+
+        Returns:
+            {
+                'is_data_query': bool,
+                'response': str (only if not a data query)
+            }
+        """
+        try:
+            classification_prompt = f"""Analyze this user question and determine if it's asking about data in a database or if it's a meta/system question.
+
+User question: "{question}"
+
+A DATA QUERY asks about information stored in database tables (customers, orders, products, revenue, etc.)
+Examples of DATA QUERIES:
+- "What was total revenue last month?"
+- "Show me top customers"
+- "How many orders do we have?"
+- "What's the average order value?"
+
+A META/SYSTEM QUESTION asks about the AI system itself, its capabilities, or is unrelated to the database.
+Examples of META/SYSTEM QUESTIONS:
+- "Does the AI have access to data?"
+- "What can you do?"
+- "How does this work?"
+- "What tables are available?"
+- "Can you help me?"
+- "What's the weather?"
+
+Respond with JSON only:
+{{
+    "is_data_query": true/false,
+    "explanation": "brief reason"
+}}"""
+
+            message = self.config.anthropic_client.messages.create(
+                model=self.config.ANTHROPIC_MODEL,
+                max_tokens=200,
+                messages=[{"role": "user", "content": classification_prompt}]
+            )
+
+            response_text = message.content[0].text.strip()
+
+            # Parse JSON response
+            import json
+            classification = json.loads(response_text)
+
+            # If it's not a data query, generate a helpful response
+            if not classification.get('is_data_query', True):
+                # Generate natural language response
+                response_prompt = f"""You are a helpful AI data assistant for an e-commerce analytics database.
+
+The user asked: "{question}"
+
+This is a question about the system/capabilities, not a data query. Provide a brief, friendly response.
+
+Available data:
+- E-commerce database with customers, orders, products, categories
+- Sample data from January-April 2024
+- Can answer questions about revenue, customers, orders, products, etc.
+
+Keep your response concise (2-3 sentences) and helpful."""
+
+                response_message = self.config.anthropic_client.messages.create(
+                    model=self.config.ANTHROPIC_MODEL,
+                    max_tokens=300,
+                    messages=[{"role": "user", "content": response_prompt}]
+                )
+
+                return {
+                    'is_data_query': False,
+                    'response': response_message.content[0].text.strip()
+                }
+
+            return {'is_data_query': True}
+
+        except Exception as e:
+            logger.warning(f"Question classification failed: {e}, treating as data query")
+            return {'is_data_query': True}
+
     async def process_question(self, question: str) -> Dict[str, Any]:
         """
         Process user question and return results.
@@ -337,6 +419,15 @@ class WrenAssistant:
         }
 
         try:
+            # First, classify the question
+            classification = await self.classify_question(question)
+
+            # If it's not a data query, return the natural language response
+            if not classification.get('is_data_query', True):
+                response['success'] = True
+                response['explanation'] = classification.get('response', '')
+                return response
+
             # Generate SQL using vector search + Claude
             result = await self.sql_generator.ask(question)
 
