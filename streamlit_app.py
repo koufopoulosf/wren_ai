@@ -504,9 +504,10 @@ async def main():
             ⚠️ **No schema loaded**
 
             **Possible causes:**
-            - Wren AI service not running (`WREN_URL`)
             - Database not connected (check `.env` file)
             - Invalid database credentials
+            - Database has no tables in the 'public' schema
+            - Qdrant or Ollama services not running
 
             **To fix:**
             1. Copy `.env.example` to `.env`
@@ -514,7 +515,8 @@ async def main():
             3. Set your database credentials:
                - `DB_HOST`, `DB_PORT`, `DB_DATABASE`
                - `DB_USER`, `DB_PASSWORD`
-            4. Restart the app
+            4. Ensure Qdrant and Ollama services are running
+            5. Restart the app
 
             **Or:** Use Docker Compose for auto-setup:
             ```
@@ -530,7 +532,8 @@ Database Host: {st.session_state.assistant.config.DB_HOST}
 Database Port: {st.session_state.assistant.config.DB_PORT}
 Database Name: {st.session_state.assistant.config.DB_DATABASE}
 Database User: {st.session_state.assistant.config.DB_USER}
-Wren AI URL: {st.session_state.assistant.config.WREN_URL}
+Qdrant Host: {st.session_state.assistant.config.QDRANT_HOST}
+Ollama URL: {st.session_state.assistant.config.OLLAMA_URL}
                 """, language="yaml")
 
         # Show available tables
