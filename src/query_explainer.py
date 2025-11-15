@@ -33,13 +33,13 @@ class QueryExplainer:
     async def explain(self, sql: str) -> str:
         """
         Generate plain English explanation of SQL.
-        
+
         Args:
             sql: SQL query to explain
-        
+
         Returns:
             1-2 sentence explanation
-        
+
         Example:
             >>> explainer = QueryExplainer(client, model)
             >>> sql = '''
@@ -67,28 +67,33 @@ Provide only the explanation, no other text or formatting."""
 
         try:
             logger.info("Generating SQL explanation with Claude")
-            
-            # Call Claude API (synchronous)
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=200,
-                temperature=0.3,  # Low temperature for consistent explanations
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+
+            # Call Claude API (now async using executor)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            message = await loop.run_in_executor(
+                None,
+                lambda: self.client.messages.create(
+                    model=self.model,
+                    max_tokens=200,
+                    temperature=0.3,  # Low temperature for consistent explanations
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
             )
-            
+
             # Extract explanation text
             explanation = message.content[0].text.strip()
-            
+
             # Remove any markdown formatting
             explanation = explanation.replace('**', '')
             explanation = explanation.replace('*', '')
-            
+
             logger.info(f"✅ Generated explanation ({len(explanation)} chars)")
             logger.debug(f"Explanation: {explanation}")
-            
+
             return explanation
 
         except Exception as e:
@@ -133,15 +138,20 @@ Provide only the explanation in plain English."""
         try:
             logger.info("Generating contextual SQL explanation with Claude")
 
-            # Call Claude API
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=250,
-                temperature=0.3,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+            # Call Claude API (now async using executor)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            message = await loop.run_in_executor(
+                None,
+                lambda: self.client.messages.create(
+                    model=self.model,
+                    max_tokens=250,
+                    temperature=0.3,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
             )
 
             explanation = message.content[0].text.strip()
