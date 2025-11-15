@@ -9,6 +9,7 @@ Modern data query assistant with natural language interface built with **Streaml
 
 - 🎯 **Natural Language Queries** - Ask in plain English, get SQL + results
 - 🧠 **MDL Semantic Layer** - 40-60% accuracy boost with business logic
+- 🔒 **READ-ONLY Security** - 6-layer protection, zero data modification risk
 - ✅ **Schema Validation** - Catches invalid tables/columns before execution
 - 🔤 **Entity Aliases** - Understands synonyms (revenue = rev = sales)
 - 💬 **Progressive Clarification** - Helps refine unclear queries
@@ -130,6 +131,31 @@ Bot:  "❌ 'NPS' not found. Available: revenue, orders, customers..."
 • 10K+ rows without LIMIT → Warning
 • Negative revenue → Warning
 ```
+
+## 🔒 Security Model
+
+**READ-ONLY Enforcement** - Zero risk of data modification or deletion.
+
+### 6-Layer Protection
+
+1. **SELECT-Only Enforcement** - Only SELECT and WITH (CTEs) allowed
+2. **Dangerous Keywords Blocked** - INSERT, UPDATE, DELETE, DROP, TRUNCATE, etc.
+3. **SQL Injection Prevention** - Blocks stacked queries, comments, command execution
+4. **Multiple Statement Blocking** - One query per request
+5. **MDL Schema Validation** - Only query tables that exist in semantic layer
+6. **Query Size Limits** - Maximum 10KB per query
+
+### What's Allowed
+✅ SELECT, WITH (CTEs), JOINs, aggregates, window functions, subqueries
+
+### What's Blocked
+❌ Data modification (INSERT, UPDATE, DELETE, MERGE)
+❌ Schema changes (DROP, CREATE, ALTER, TRUNCATE)
+❌ File operations (COPY, UNLOAD, INTO OUTFILE)
+❌ SQL injection patterns
+❌ Multiple statements (stacked queries)
+
+**Perfect for read-only analytics access** - Data engineers can safely query without risk.
 
 ## 📁 Project Structure
 
@@ -275,22 +301,28 @@ For production use:
    - Set up log aggregation (ELK, Splunk)
    - Configure alerts
 
-## 📚 Learn More
+## 📚 Documentation
 
-- [Wren AI Documentation](https://docs.getwren.ai/)
+### Included Guides
+- **[MDL Usage Guide](docs/MDL_USAGE.md)** - Complete guide to the semantic layer
+- **[Wren AI API Reference](docs/WREN_API.md)** - REST API endpoints and examples
+
+### External Resources
+- [Wren AI Official Docs](https://docs.getwren.ai/)
 - [Streamlit Documentation](https://docs.streamlit.io/)
-- [MDL Specification](https://docs.getwren.ai/guide/mdl)
-- [PostgreSQL Docs](https://www.postgresql.org/docs/)
+- [Claude API Documentation](https://docs.anthropic.com/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 
 ## 🎉 What's New in v2.0
 
 - ✨ **Streamlit UI** - Replaced Slack bot with modern web interface
+- 🔒 **READ-ONLY Security** - 6-layer protection with comprehensive SQL validation
 - 🧠 **Schema Validation** - Validates against MDL before execution
 - 🔤 **Entity Aliases** - Auto-generated synonyms for better matching
 - ✅ **Pre-Query Validation** - Catches errors before Wren AI call
 - 📊 **Result Validation** - Warns about suspicious query results
 - 🐘 **PostgreSQL** - Complete test database with sample data
-- 🎯 **Simplified** - Removed complex RLS/department filtering
+- 🎯 **Simplified** - Removed complex RLS/department filtering for internal use
 
 ## 📝 License
 
