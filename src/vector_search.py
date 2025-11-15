@@ -151,6 +151,11 @@ class VectorSearch:
             entities: List of dicts with keys: entity_id, text, entity_type, metadata
         """
         try:
+            # Skip if no entities to index
+            if not entities:
+                logger.info("No entities to index (empty list)")
+                return
+
             points = []
 
             for entity in entities:
