@@ -26,6 +26,7 @@ from export_handler import ExportHandler
 from config import Config
 from context_manager import ContextManager
 from rate_limiter import RateLimiter
+from error_handler import ErrorHandler
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,7 @@ class SlackBot:
         self.export_handler = export_handler
         self.context_manager = context_manager  # NEW
         self.rate_limiter = rate_limiter  # NEW
+        self.error_handler = ErrorHandler()  # NEW
 
         # Use config values instead of hardcoded defaults
         self.max_rows_display = config.MAX_ROWS_DISPLAY
@@ -127,7 +129,7 @@ class SlackBot:
         # Register Slack handlers
         self._register_handlers()
 
-        logger.info("✅ Slack bot initialized with context and rate limiting support")
+        logger.info("✅ Slack bot initialized with context, rate limiting, and error handling")
         logger.info(f"  Max rows display: {self.max_rows_display}")
         logger.info(f"  Confidence thresholds: high={self.confidence_high}, low={self.confidence_low}")
         logger.info(f"  Clarifications: {self.enable_clarification}")
@@ -170,32 +172,49 @@ class SlackBot:
     async def handle_ask(self, ack, command, client):
         """
         Handle /ask slash command.
-        
+
         Flow:
         1. Acknowledge immediately
-        2. Validate user authorization
-        3. Query Wren AI
-        4. Check confidence level
-        5. Show clarification OR approval UI
+        2. Check rate limit
+        3. Validate user authorization
+        4. Detect context/follow-ups
+        5. Query Wren AI
+        6. Check confidence level
+        7. Show clarification OR approval UI
         """
         await ack()
-        
+
         user_id = command["user_id"]
         question = command["text"].strip()
         channel_id = command["channel_id"]
-        
+
         # Get user details from Slack
         user_info_slack = await self._get_user_info(client, user_id)
         username = user_info_slack["real_name"]
-        
+
         if not question:
             await client.chat_postMessage(
                 channel=channel_id,
                 text="❓ Please ask a question.\n\n*Example:* `/ask What was revenue last month?`"
             )
             return
-        
+
         try:
+            # NEW: Check rate limit FIRST (before any processing)
+            user_info = self.rls.get_user_info(user_id)
+            is_admin = user_info and user_info.get('role') == 'admin'
+
+            if not is_admin:  # Admins bypass rate limiting
+                is_allowed, error_msg = self.rate_limiter.check_rate_limit(user_id)
+
+                if not is_allowed:
+                    logger.warning(f"⚠️ Rate limit exceeded for user {user_id}")
+                    await client.chat_postMessage(
+                        channel=channel_id,
+                        text=error_msg
+                    )
+                    return
+
             # Check if user is authorized
             if not self.rls.is_authorized(user_id):
                 logger.warning(f"Unauthorized access attempt by {user_id}")
@@ -204,28 +223,50 @@ class SlackBot:
                     text=(
                         "🚫 You are not authorized to use this bot.\n\n"
                         "Please contact your administrator to get access.\n"
-                        "Your Slack user ID: `{user_id}`"
+                        f"Your Slack user ID: `{user_id}`"
                     )
                 )
                 return
-            
-            # Get user role info
-            user_info = self.rls.get_user_info(user_id)
+
+            # Get user role info (already fetched above for rate limit check)
             dept = user_info["department"]
-            
+
             # Log query start
             QueryLogger.log_query_start(user_id, username, question, dept)
-            
+
+            # NEW: Check if this is a follow-up question
+            is_followup = self.context_manager.is_follow_up(question)
+            previous_context = None
+            question_for_wren = question
+
+            if is_followup:
+                previous_context = self.context_manager.get_context(user_id)
+
+                if previous_context:
+                    logger.info(f"🔗 Detected follow-up question from {user_id}")
+
+                    # Enrich question with previous context
+                    question_for_wren = self.context_manager.build_context_prompt(
+                        question,
+                        previous_context
+                    )
+
+                    logger.info(f"📝 Enriched question with context")
+
             # Show "thinking" message
+            thinking_text = f"🤔 Analyzing: _{question}_"
+            if is_followup and previous_context:
+                thinking_text += "\n_💡 Using context from previous question..._"
+
             thinking = await client.chat_postMessage(
                 channel=channel_id,
-                text=f"🤔 Analyzing: _{question}_"
+                text=thinking_text
             )
-            
-            # Query Wren AI
+
+            # Query Wren AI (with enriched question if follow-up)
             logger.info(f"Querying Wren AI for user {user_id}")
             wren_response = await self.wren.ask_question(
-                question,
+                question_for_wren,
                 user_context={"department": dept}
             )
             
@@ -297,14 +338,14 @@ class SlackBot:
         except Exception as e:
             logger.error(f"Error in handle_ask for user {user_id}: {e}", exc_info=True)
             QueryLogger.log_query_error(user_id, question, str(e))
-            
+
+            # NEW: Use ErrorHandler for user-friendly messages
+            error_type, friendly_msg = self.error_handler.classify_error(e, question)
+            logger.info(f"Error classified as: {error_type}")
+
             await client.chat_postMessage(
                 channel=channel_id,
-                text=(
-                    f"❌ Sorry, something went wrong: {str(e)}\n\n"
-                    "Please try again or rephrase your question.\n"
-                    "If the problem persists, contact your administrator."
-                )
+                text=friendly_msg
             )
     
     async def _handle_no_sql(
@@ -496,10 +537,18 @@ class SlackBot:
             start = time.time()
             results = await self.wren.execute_sql(filtered_sql)
             duration = time.time() - start
-            
+
             # Log success
             QueryLogger.log_query_success(user_id, question, duration, len(results))
-            
+
+            # NEW: Save context for follow-up questions
+            self.context_manager.save_context(
+                user_id=user_id,
+                question=question,  # Original question, not SQL
+                sql=filtered_sql,
+                results=results
+            )
+
             # Show results
             await self._show_results(
                 client, channel_id, ts,
@@ -508,27 +557,22 @@ class SlackBot:
         
         except Exception as e:
             logger.error(f"Error executing query for {user_id}: {e}", exc_info=True)
-            QueryLogger.log_query_error(
-                user_id,
-                question if 'question' in locals() else "unknown",
-                str(e)
-            )
-            
+            question_val = question if 'question' in locals() else "unknown"
+            QueryLogger.log_query_error(user_id, question_val, str(e))
+
+            # NEW: Use ErrorHandler for user-friendly messages
+            error_type, friendly_msg = self.error_handler.classify_error(e, question_val)
+            logger.info(f"Execution error classified as: {error_type}")
+
             await client.chat_update(
                 channel=channel_id,
                 ts=ts,
-                text=f"❌ Query failed: {str(e)}",
+                text=friendly_msg,
                 blocks=[{
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": (
-                            f"❌ *Query failed:*\n{str(e)}\n\n"
-                            "*Try:*\n"
-                            "• Simplifying your question\n"
-                            "• Adding more specific filters\n"
-                            "• Choosing a shorter time period"
-                        )
+                        "text": friendly_msg
                     }
                 }]
             )
@@ -596,11 +640,16 @@ class SlackBot:
             })
         
         # Build blocks
+        result_text = f"✅ *Results* ({duration:.1f}s | {len(results)} rows)\n\n{text}"
+
+        # NEW: Add hint about follow-up questions
+        result_text += "\n\n💡 _You can ask follow-up questions like \"how about this month?\" or \"show by region\"_"
+
         blocks = [{
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"✅ *Results* ({duration:.1f}s | {len(results)} rows)\n\n{text}"
+                "text": result_text
             }
         }]
         
