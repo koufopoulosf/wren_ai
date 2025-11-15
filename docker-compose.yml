@@ -71,17 +71,23 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "ollama serve &
-       pid=$!;
+       SERVER_PID=$$!;
+       echo 'Waiting for Ollama server to start...';
        sleep 5;
-       until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do sleep 1; done;
+       until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do
+         echo 'Waiting for API...';
+         sleep 2;
+       done;
+       echo 'Server ready, pulling nomic-embed-text model...';
        ollama pull nomic-embed-text;
-       wait $pid"
+       echo 'Model pulled successfully';
+       wait $$SERVER_PID"
     healthcheck:
       test: ["CMD", "sh", "-c", "curl -s http://localhost:11434/api/tags > /dev/null && ollama list | grep -q nomic-embed-text"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 120s
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 300s
 
   # Wren AI Service (Claude-powered text-to-SQL)
   wren-ai:
