@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 COPY streamlit_app.py .
+COPY .streamlit/ ./.streamlit/
 
 # Create logs directory
 RUN mkdir -p /app/logs && chmod 777 /app/logs

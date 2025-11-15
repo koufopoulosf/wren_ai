@@ -102,6 +102,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./streamlit_app.py:/app/streamlit_app.py
+      - ./.streamlit:/app/.streamlit
       - ./logs:/app/logs
     restart: unless-stopped
     networks:
