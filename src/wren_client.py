@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import httpx
 from fuzzywuzzy import fuzz, process
+from anthropic import Anthropic
 
 # Database connectors (import as needed)
 try:
@@ -47,7 +48,9 @@ class WrenClient:
         db_type: str = "redshift",
         db_config: Optional[Dict] = None,
         redshift_config: Optional[Dict] = None,  # Deprecated, use db_config
-        mdl_hash: Optional[str] = None
+        mdl_hash: Optional[str] = None,
+        anthropic_client: Optional[Anthropic] = None,
+        model: str = "claude-sonnet-4-20250514"
     ):
         """
         Initialize Wren AI client with optional database fallback.
@@ -59,10 +62,14 @@ class WrenClient:
             db_config: Optional database connection config for fallback
             redshift_config: Deprecated - use db_config instead
             mdl_hash: Optional MDL hash for version control (auto-fetched if not provided)
+            anthropic_client: Optional Anthropic client for NLP understanding
+            model: Claude model name for NLP tasks
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=timeout)
+        self.anthropic_client = anthropic_client
+        self.model = model
 
         # Simple rate limiting (10 req/sec)
         self._last_request_time = None
@@ -118,36 +125,148 @@ class WrenClient:
         mentioned_entities = await self._extract_entities_from_question(question)
 
         if not mentioned_entities:
-            # No specific entities detected - let Wren AI handle it
-            return True, "", []
+            # No specific entities detected - ask for clarification
+            return await self._generate_clarification(question)
 
         # Validate entities
         found, missing = await self._validate_entities(mentioned_entities)
 
         if missing:
-            # Some entities don't exist - provide helpful error
-            error_msg = f"⚠️ *Entity Not Found*\n\n"
-            error_msg += f"Could not find: {', '.join(f'`{e}`' for e in missing)}\n\n"
-
-            # Suggest similar entities
-            suggestions = []
-            for entity in missing:
-                best_match = self._fuzzy_find_entity(entity)
-                if best_match and best_match['score'] > 50:
-                    suggestions.append(best_match['entity']['name'])
-
-            if suggestions:
-                error_msg += f"Did you mean: {', '.join(f'`{s}`' for s in suggestions)}?"
-            else:
-                # Show available entities
-                available = [e['name'] for e in self._entities_cache[:10]]
-                if available:
-                    error_msg += f"Available entities: {', '.join(f'`{a}`' for a in available)}"
-
-            return False, error_msg, suggestions
+            # Some entities don't exist - provide helpful guidance
+            return await self._generate_entity_not_found_response(question, missing, found)
 
         logger.info(f"✅ Pre-validation passed - all entities exist")
         return True, "", []
+
+    async def _generate_clarification(self, question: str) -> Tuple[bool, str, List[str]]:
+        """
+        Generate helpful clarification when we can't understand the question.
+
+        Returns:
+            (is_valid=True, clarification_message, suggestions)
+        """
+        # If we have no schema loaded, ask user to wait
+        if not self._entities_cache:
+            msg = "⏳ **Loading your data schema...**\n\nPlease wait a moment while I discover what data is available."
+            return False, msg, []
+
+        # Generate helpful guidance using Claude
+        if self.anthropic_client:
+            try:
+                return await self._generate_ai_clarification(question)
+            except Exception as e:
+                logger.warning(f"AI clarification failed: {e}")
+
+        # Fallback: Show available data
+        available = [e['name'] for e in self._entities_cache[:15]]
+        msg = f"💡 **I'm not sure what data you're looking for.**\n\n"
+        msg += f"Available data includes: {', '.join(f'`{a}`' for a in available)}\n\n"
+        msg += "Can you rephrase your question using one of these entities?"
+
+        return False, msg, available
+
+    async def _generate_ai_clarification(self, question: str) -> Tuple[bool, str, List[str]]:
+        """Use Claude to generate helpful clarifying questions."""
+        available_entities = [e['name'] for e in self._entities_cache[:30]]
+        entity_list = ', '.join(available_entities)
+
+        prompt = f"""The user asked: "{question}"
+
+Available data entities: {entity_list}
+
+The question doesn't clearly match any specific entity. Generate 2-3 helpful clarifying questions to understand what the user wants, OR suggest which entities might be relevant.
+
+Format your response as:
+💡 **Let me help clarify:**
+- [Question 1]
+- [Question 2]
+- [Suggestion if applicable]
+
+Be conversational and helpful."""
+
+        message = self.anthropic_client.messages.create(
+            model=self.model,
+            max_tokens=200,
+            temperature=0.5,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        clarification = message.content[0].text.strip()
+        return False, clarification, available_entities[:5]
+
+    async def _generate_entity_not_found_response(
+        self,
+        question: str,
+        missing: List[str],
+        found: List[str]
+    ) -> Tuple[bool, str, List[str]]:
+        """
+        Generate helpful response when entities are not found.
+
+        Returns:
+            (is_valid, error_message, suggestions)
+        """
+        # Find suggestions using fuzzy matching
+        suggestions = []
+        for entity in missing:
+            best_match = self._fuzzy_find_entity(entity)
+            if best_match and best_match['score'] > 50:
+                suggestions.append(best_match['entity']['name'])
+
+        # Use Claude to generate a helpful response
+        if self.anthropic_client and suggestions:
+            try:
+                return await self._generate_ai_entity_suggestion(question, missing, suggestions)
+            except Exception as e:
+                logger.warning(f"AI suggestion generation failed: {e}")
+
+        # Fallback to basic error message
+        error_msg = f"⚠️ **Entity Not Found**\n\n"
+        error_msg += f"Could not find: {', '.join(f'`{e}`' for e in missing)}\n\n"
+
+        if suggestions:
+            error_msg += f"💡 **Did you mean:** {', '.join(f'`{s}`' for s in suggestions)}?\n\n"
+            error_msg += "Try asking your question with one of these entities instead."
+        else:
+            # Show available entities
+            available = [e['name'] for e in self._entities_cache[:10]]
+            if available:
+                error_msg += f"**Available data:** {', '.join(f'`{a}`' for a in available)}"
+
+        return False, error_msg, suggestions
+
+    async def _generate_ai_entity_suggestion(
+        self,
+        question: str,
+        missing: List[str],
+        suggestions: List[str]
+    ) -> Tuple[bool, str, List[str]]:
+        """Use Claude to generate a helpful suggestion for entity not found."""
+        prompt = f"""The user asked: "{question}"
+
+They mentioned: {', '.join(missing)}
+But these entities don't exist in the schema.
+
+Similar entities that DO exist: {', '.join(suggestions)}
+
+Generate a helpful, conversational response that:
+1. Acknowledges what they're looking for
+2. Suggests the similar entities
+3. Asks if they want to use one of those instead
+
+Keep it friendly and concise (2-3 sentences max).
+
+Response:"""
+
+        message = self.anthropic_client.messages.create(
+            model=self.model,
+            max_tokens=200,
+            temperature=0.5,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        response_text = message.content[0].text.strip()
+        return False, response_text, suggestions
 
     async def ask_question(
         self,
@@ -306,25 +425,74 @@ class WrenClient:
     
     async def _extract_entities_from_question(self, question: str) -> List[str]:
         """
-        Extract potential entity names from question.
-        
+        Extract potential entity names from question using Claude NLP.
+
         Returns:
             List of potential entity names mentioned
         """
-        # Common metric/entity patterns
+        # If no Claude client, fall back to basic pattern matching
+        if not self.anthropic_client:
+            return await self._extract_entities_basic(question)
+
+        # Use Claude to understand what the user is asking about
+        try:
+            available_entities = [e['name'] for e in self._entities_cache[:50]]
+            entity_list = ', '.join(available_entities[:20]) if available_entities else "No entities loaded yet"
+
+            prompt = f"""You are analyzing a data question to identify which data entities (tables, columns, or metrics) the user is asking about.
+
+Question: "{question}"
+
+Available entities in the schema: {entity_list}
+
+Task: Extract the key entities the user is asking about. Consider:
+- Direct mentions (e.g., "revenue" → revenue)
+- Synonyms (e.g., "income" → revenue, "clients" → customers)
+- Implied entities (e.g., "how much did we make" → revenue/sales)
+
+Return ONLY a JSON array of entity names mentioned or implied, or an empty array if none.
+Example: ["revenue", "customers"]
+
+Response:"""
+
+            message = self.anthropic_client.messages.create(
+                model=self.model,
+                max_tokens=150,
+                temperature=0.2,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = message.content[0].text.strip()
+
+            # Parse JSON response
+            import re
+            json_match = re.search(r'\[.*?\]', response_text, re.DOTALL)
+            if json_match:
+                entities = json.loads(json_match.group())
+                logger.info(f"Claude extracted entities: {entities}")
+                return entities
+
+            return []
+
+        except Exception as e:
+            logger.warning(f"Claude entity extraction failed: {e}, falling back to basic patterns")
+            return await self._extract_entities_basic(question)
+
+    async def _extract_entities_basic(self, question: str) -> List[str]:
+        """Fallback: Basic pattern matching for entity extraction."""
         patterns = [
             'nps', 'revenue', 'orders', 'customers', 'users', 'sales',
             'churn', 'retention', 'conversion', 'traffic', 'signups',
             'arr', 'mrr', 'ltv', 'cac', 'roi', 'margin'
         ]
-        
+
         question_lower = question.lower()
         mentioned = []
-        
+
         for pattern in patterns:
             if pattern in question_lower:
                 mentioned.append(pattern)
-        
+
         return mentioned
     
     async def _validate_entities(
@@ -785,18 +953,181 @@ class WrenClient:
                 return True
 
             elif response.status_code == 404:
-                logger.warning("⚠️ No MDL deployed - accuracy will be limited")
-                logger.warning("   Deploy MDL via Wren UI for better results")
+                logger.warning("⚠️ No MDL deployed")
+                logger.warning("   Attempting to introspect database schema directly...")
+
+                # Fallback: introspect database schema
+                if self.db_config:
+                    try:
+                        success = await self._introspect_database_schema()
+                        if success:
+                            logger.info("✅ Successfully introspected database schema")
+                            logger.info("   For better accuracy, deploy MDL via Wren UI")
+                            return True
+                    except Exception as db_error:
+                        logger.error(f"❌ Database introspection failed: {db_error}")
+
+                logger.warning("   Bot will work but with limited schema knowledge")
+                logger.warning("   See docs/MDL_USAGE.md for MDL setup instructions")
                 return False
 
             else:
                 logger.warning(f"⚠️ Failed to load MDL: HTTP {response.status_code}")
+                logger.warning("   Attempting to introspect database schema directly...")
+
+                # Fallback: introspect database schema
+                if self.db_config:
+                    try:
+                        success = await self._introspect_database_schema()
+                        if success:
+                            logger.info("✅ Successfully introspected database schema")
+                            return True
+                    except Exception as db_error:
+                        logger.error(f"❌ Database introspection failed: {db_error}")
+
                 return False
 
         except Exception as e:
             logger.warning(f"⚠️ Could not load MDL: {e}")
-            logger.warning("   Bot will work but with reduced accuracy")
-            logger.warning("   See docs/MDL_USAGE.md for setup instructions")
+            logger.warning("   Attempting to introspect database schema directly...")
+
+            # Fallback: introspect database schema
+            if self.db_config:
+                try:
+                    success = await self._introspect_database_schema()
+                    if success:
+                        logger.info("✅ Successfully introspected database schema")
+                        return True
+                except Exception as db_error:
+                    logger.error(f"❌ Database introspection failed: {db_error}")
+
+            logger.warning("   Bot will work but with limited schema knowledge")
+            logger.warning("   See docs/MDL_USAGE.md for MDL setup instructions")
+            return False
+
+    async def _introspect_database_schema(self) -> bool:
+        """
+        Fallback: Introspect database schema directly when MDL unavailable.
+
+        Discovers tables and columns from database information_schema.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info("🔍 Introspecting database schema...")
+
+        try:
+            # Connect to database
+            if self.db_type == "postgres":
+                if not POSTGRES_AVAILABLE:
+                    logger.error("psycopg2 not installed")
+                    return False
+
+                import psycopg2.extras
+                conn = psycopg2.connect(**self.db_config)
+
+            elif self.db_type == "redshift":
+                if not REDSHIFT_AVAILABLE:
+                    logger.error("redshift-connector not installed")
+                    return False
+
+                conn = redshift_connector.connect(**self.db_config)
+
+            else:
+                logger.error(f"Unsupported database type: {self.db_type}")
+                return False
+
+            cursor = conn.cursor()
+
+            # Query to get tables and columns
+            # Works for both PostgreSQL and Redshift
+            query = """
+                SELECT
+                    t.table_schema,
+                    t.table_name,
+                    c.column_name,
+                    c.data_type,
+                    c.ordinal_position
+                FROM information_schema.tables t
+                JOIN information_schema.columns c
+                    ON t.table_schema = c.table_schema
+                    AND t.table_name = c.table_name
+                WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
+                    AND t.table_type = 'BASE TABLE'
+                ORDER BY t.table_schema, t.table_name, c.ordinal_position
+            """
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            # Group by table
+            tables = {}
+            for row in rows:
+                schema, table, column, data_type, position = row
+                table_key = f"{schema}.{table}"
+
+                if table_key not in tables:
+                    tables[table_key] = {
+                        'name': table,
+                        'schema': schema,
+                        'columns': []
+                    }
+
+                tables[table_key]['columns'].append({
+                    'name': column,
+                    'type': data_type,
+                    'position': position
+                })
+
+            cursor.close()
+            conn.close()
+
+            # Convert to MDL format
+            self._mdl_models = []
+            self._mdl_metrics = []
+            self._entities_cache = []
+
+            for table_key, table_info in tables.items():
+                # Create model
+                model = {
+                    'name': table_info['name'],
+                    'table_reference': {
+                        'schema': table_info['schema'],
+                        'table': table_info['name']
+                    },
+                    'columns': table_info['columns'],
+                    'description': f"Table {table_key}"
+                }
+                self._mdl_models.append(model)
+
+                # Add to entities cache
+                entity = {
+                    'name': table_info['name'],
+                    'type': 'model',
+                    'description': f"Table {table_key}",
+                    'columns': len(table_info['columns']),
+                    'aliases': self._generate_aliases(table_info['name'])
+                }
+                self._entities_cache.append(entity)
+
+                # Add columns to entities cache
+                for col in table_info['columns']:
+                    col_entity = {
+                        'name': col['name'],
+                        'type': 'column',
+                        'model': table_info['name'],
+                        'description': f"{col['type']} column in {table_info['name']}",
+                        'aliases': self._generate_aliases(col['name'])
+                    }
+                    self._entities_cache.append(col_entity)
+
+            logger.info(f"✅ Introspected {len(self._mdl_models)} tables")
+            logger.info(f"   - Total entities: {len(self._entities_cache)}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to introspect database: {e}", exc_info=True)
             return False
 
     def _generate_aliases(self, name: str, description: str = "") -> List[str]:

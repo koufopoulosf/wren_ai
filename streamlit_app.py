@@ -218,11 +218,16 @@ class WrenAssistant:
             base_url=self.config.WREN_URL,
             db_type=self.config.DB_TYPE,
             db_config=db_config,
-            mdl_hash=self.config.WREN_MDL_HASH
+            mdl_hash=self.config.WREN_MDL_HASH,
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
         )
 
-        # Load MDL
-        await self.wren.load_mdl()
+        # Load MDL (or fallback to database introspection)
+        mdl_loaded = await self.wren.load_mdl()
+
+        if not mdl_loaded:
+            logger.warning("⚠️ Schema discovery incomplete - functionality may be limited")
 
         # Initialize validators
         self.validator = SQLValidator(
@@ -471,6 +476,19 @@ async def main():
             st.metric("Tables", len(models))
         with col2:
             st.metric("Metrics", len(metrics))
+
+        # Show message if no schema loaded
+        if len(models) == 0 and len(metrics) == 0:
+            st.info("""
+            🔄 **No schema loaded yet**
+
+            The system will auto-discover your database schema on the first question you ask.
+
+            Or check if:
+            - Database is connected
+            - Wren AI service is running
+            - MDL is deployed
+            """)
 
         # Show available tables
         if models:
