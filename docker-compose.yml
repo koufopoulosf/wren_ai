@@ -21,29 +21,42 @@ services:
     networks:
       - wren-network
 
-  # Wren AI Service (updated for PostgreSQL)
+  # Wren Engine (Java-based query engine)
+  wren-engine:
+    image: ghcr.io/canner/wren-engine:latest
+    container_name: wren-engine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./database/mdl:/usr/src/app/etc
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    environment:
+      MAX_HEAP_SIZE: 1638m
+      MIN_HEAP_SIZE: 1638m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - wren-network
+
+  # Wren AI Service (Ibis-based text-to-SQL)
   wren-ai:
-    image: ghcr.io/canner/wren-ai:latest
+    image: ghcr.io/canner/wren-engine-ibis:latest
     container_name: wren-ai-service
     ports:
       - "8000:8000"
     environment:
-      WREN_LLM_PROVIDER: anthropic
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      # PostgreSQL connection
-      DB_TYPE: postgres
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: analytics
-      DB_USER: wren_user
-      DB_PASSWORD: wren_password
-      DB_SSL: "false"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      WREN_ENGINE_ENDPOINT: http://wren-engine:8080
     volumes:
-      - wren-data:/app/data
-      - ./database/mdl:/app/mdl
+      - ./database/mdl:/usr/src/app/etc
+    depends_on:
+      - wren-engine
+      - postgres
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
