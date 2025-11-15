@@ -4,16 +4,12 @@ slack-sdk>=3.23.0
 
 # Async support
 aiohttp>=3.9.0
-asyncio-throttle>=1.0.2
 
 # HTTP client for Wren AI
 httpx>=0.25.0
 
 # Claude API (Anthropic)
 anthropic>=0.39.0
-
-# SQL parsing and validation
-sqlparse>=0.4.4
 
 # Configuration management
 python-dotenv>=1.0.0
@@ -26,8 +22,9 @@ numpy>=1.24.0
 plotly>=5.18.0
 kaleido>=0.2.1
 
-# AWS Redshift connector (for direct queries if needed)
-redshift-connector>=2.0.918
+# Database connectors (for direct queries if needed)
+redshift-connector>=2.0.918  # For Redshift
+psycopg2-binary>=2.9.0  # For Postgres
 
 # Fuzzy string matching (for suggestions)
 fuzzywuzzy>=0.18.0

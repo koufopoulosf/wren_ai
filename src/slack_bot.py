@@ -16,7 +16,6 @@ import time
 from typing import Dict, Optional, List
 from datetime import datetime
 from slack_bolt.async_app import AsyncApp
-from fuzzywuzzy import fuzz, process
 
 from wren_client import WrenClient
 from security import RowLevelSecurity
@@ -24,6 +23,9 @@ from explainer import QueryExplainer
 from validator import SQLValidator
 from export_handler import ExportHandler
 from config import Config
+from context_manager import ContextManager
+from rate_limiter import RateLimiter
+from error_handler import ErrorHandler
 
 logger = logging.getLogger(__name__)
 
@@ -81,18 +83,20 @@ class SlackBot:
     """
     
     def __init__(
-        self, 
+        self,
         app: AsyncApp,
         wren: WrenClient,
         rls: RowLevelSecurity,
         explainer: QueryExplainer,
         validator: SQLValidator,
         export_handler: ExportHandler,
-        config: Config  # Now accepts config
+        config: Config,
+        context_manager: ContextManager,  # NEW
+        rate_limiter: RateLimiter  # NEW
     ):
         """
         Initialize bot with all components.
-        
+
         Args:
             app: Slack Bolt async app
             wren: Wren AI client
@@ -101,6 +105,8 @@ class SlackBot:
             validator: SQL validator
             export_handler: Export handler
             config: Configuration object
+            context_manager: Context manager for follow-up questions
+            rate_limiter: Rate limiter for preventing spam
         """
         self.app = app
         self.wren = wren
@@ -108,18 +114,21 @@ class SlackBot:
         self.explainer = explainer
         self.validator = validator
         self.export_handler = export_handler
-        
+        self.context_manager = context_manager  # NEW
+        self.rate_limiter = rate_limiter  # NEW
+        self.error_handler = ErrorHandler()  # NEW
+
         # Use config values instead of hardcoded defaults
         self.max_rows_display = config.MAX_ROWS_DISPLAY
         self.confidence_high = config.CONFIDENCE_THRESHOLD_HIGH
         self.confidence_low = config.CONFIDENCE_THRESHOLD_LOW
         self.enable_clarification = config.ENABLE_PROGRESSIVE_CLARIFICATION
         self.enable_suggestions = config.ENABLE_ALTERNATIVE_SUGGESTIONS
-        
+
         # Register Slack handlers
         self._register_handlers()
-        
-        logger.info("✅ Slack bot initialized with config-driven settings")
+
+        logger.info("✅ Slack bot initialized with context, rate limiting, and error handling")
         logger.info(f"  Max rows display: {self.max_rows_display}")
         logger.info(f"  Confidence thresholds: high={self.confidence_high}, low={self.confidence_low}")
         logger.info(f"  Clarifications: {self.enable_clarification}")
@@ -128,6 +137,8 @@ class SlackBot:
     def _register_handlers(self):
         """Register all Slack command and action handlers."""
         self.app.command("/ask")(self.handle_ask)
+        self.app.command("/metrics")(self.handle_metrics)
+        self.app.command("/models")(self.handle_models)
         self.app.action("approve_query")(self.handle_approval)
         self.app.action("cancel_query")(self.handle_cancel)
         self.app.action("export_csv")(self.handle_export_csv)
@@ -162,32 +173,53 @@ class SlackBot:
     async def handle_ask(self, ack, command, client):
         """
         Handle /ask slash command.
-        
+
         Flow:
         1. Acknowledge immediately
-        2. Validate user authorization
-        3. Query Wren AI
-        4. Check confidence level
-        5. Show clarification OR approval UI
+        2. Check rate limit
+        3. Validate user authorization
+        4. Detect context/follow-ups
+        5. Query Wren AI
+        6. Check confidence level
+        7. Show clarification OR approval UI
         """
         await ack()
-        
+
         user_id = command["user_id"]
         question = command["text"].strip()
         channel_id = command["channel_id"]
-        
+
         # Get user details from Slack
         user_info_slack = await self._get_user_info(client, user_id)
         username = user_info_slack["real_name"]
-        
+
         if not question:
             await client.chat_postMessage(
                 channel=channel_id,
                 text="❓ Please ask a question.\n\n*Example:* `/ask What was revenue last month?`"
             )
             return
-        
+
+        # Periodic cleanup to prevent memory leaks
+        self.context_manager.cleanup_expired()
+        self.rate_limiter.cleanup_expired()
+
         try:
+            # NEW: Check rate limit FIRST (before any processing)
+            user_info = self.rls.get_user_info(user_id)
+            is_admin = user_info and user_info.get('role') == 'admin'
+
+            if not is_admin:  # Admins bypass rate limiting
+                is_allowed, error_msg = self.rate_limiter.check_rate_limit(user_id)
+
+                if not is_allowed:
+                    logger.warning(f"⚠️ Rate limit exceeded for user {user_id}")
+                    await client.chat_postMessage(
+                        channel=channel_id,
+                        text=error_msg
+                    )
+                    return
+
             # Check if user is authorized
             if not self.rls.is_authorized(user_id):
                 logger.warning(f"Unauthorized access attempt by {user_id}")
@@ -196,41 +228,83 @@ class SlackBot:
                     text=(
                         "🚫 You are not authorized to use this bot.\n\n"
                         "Please contact your administrator to get access.\n"
-                        "Your Slack user ID: `{user_id}`"
+                        f"Your Slack user ID: `{user_id}`"
                     )
                 )
                 return
-            
-            # Get user role info
-            user_info = self.rls.get_user_info(user_id)
+
+            # Get user role info (already fetched above for rate limit check)
             dept = user_info["department"]
-            
+
             # Log query start
             QueryLogger.log_query_start(user_id, username, question, dept)
-            
+
+            # NEW: Check if this is a follow-up question
+            is_followup = self.context_manager.is_follow_up(question)
+            previous_context = None
+            question_for_wren = question
+
+            if is_followup:
+                previous_context = self.context_manager.get_context(user_id)
+
+                if previous_context:
+                    logger.info(f"🔗 Detected follow-up question from {user_id}")
+
+                    # Enrich question with previous context
+                    question_for_wren = self.context_manager.build_context_prompt(
+                        question,
+                        previous_context
+                    )
+
+                    logger.info(f"📝 Enriched question with context")
+
             # Show "thinking" message
+            thinking_text = f"🤔 Analyzing: _{question}_"
+            if is_followup and previous_context:
+                thinking_text += "\n_💡 Using context from previous question..._"
+
             thinking = await client.chat_postMessage(
                 channel=channel_id,
-                text=f"🤔 Analyzing: _{question}_"
+                text=thinking_text
             )
-            
-            # Query Wren AI
+
+            # Query Wren AI (with enriched question if follow-up)
             logger.info(f"Querying Wren AI for user {user_id}")
             wren_response = await self.wren.ask_question(
-                question,
+                question_for_wren,
                 user_context={"department": dept}
             )
             
             sql = wren_response.get("sql", "")
             confidence = wren_response.get("confidence", 0.0)
             suggestions = wren_response.get("suggestions", [])
-            
+            entities_missing = wren_response.get("entities_missing", [])
+
             # Handle no SQL generated
             if not sql:
                 QueryLogger.log_clarification(user_id, question, "No SQL generated")
+
+                # NEW: Try entity discovery to help user
+                similar_entities = []
+                if entities_missing:
+                    logger.info(f"🔍 Searching for similar entities to: {entities_missing}")
+                    for entity in entities_missing:
+                        similar = await self.wren.search_similar_entities(entity, limit=3)
+                        similar_entities.extend(similar)
+
+                    # Remove duplicates and keep top 5
+                    seen = set()
+                    unique_similar = []
+                    for entity in similar_entities:
+                        key = entity.get('name')
+                        if key and key not in seen:
+                            seen.add(key)
+                            unique_similar.append(entity)
+                    similar_entities = unique_similar[:5]
+
                 await self._handle_no_sql(
                     client, channel_id, thinking["ts"],
-                    question, suggestions, user_id
+                    question, suggestions, user_id, similar_entities
                 )
                 return
             
@@ -269,28 +343,55 @@ class SlackBot:
         except Exception as e:
             logger.error(f"Error in handle_ask for user {user_id}: {e}", exc_info=True)
             QueryLogger.log_query_error(user_id, question, str(e))
-            
+
+            # NEW: Use ErrorHandler for user-friendly messages
+            error_type, friendly_msg = self.error_handler.classify_error(e, question)
+            logger.info(f"Error classified as: {error_type}")
+
             await client.chat_postMessage(
                 channel=channel_id,
-                text=(
-                    f"❌ Sorry, something went wrong: {str(e)}\n\n"
-                    "Please try again or rephrase your question.\n"
-                    "If the problem persists, contact your administrator."
-                )
+                text=friendly_msg
             )
     
     async def _handle_no_sql(
         self, client, channel_id: str, ts: str,
-        question: str, suggestions: List, user_id: str
+        question: str, suggestions: List, user_id: str,
+        similar_entities: Optional[List[Dict]] = None
     ):
-        """Handle case where Wren couldn't generate SQL."""
+        """
+        Handle case where Wren couldn't generate SQL.
+
+        Args:
+            similar_entities: List of similar entities found via entity discovery
+        """
         text = "😕 I couldn't generate a query for that question.\n\n"
-        
+
+        # NEW: Show similar entities if found
+        if similar_entities:
+            text += "*🔍 I found these related items in the database:*\n"
+            for entity in similar_entities:
+                entity_name = entity.get('name', '')
+                entity_type = entity.get('type', 'item')
+                entity_desc = entity.get('description', '')
+                score = entity.get('score', 0)
+
+                # Only show reasonable matches (score > 60)
+                if score > 60:
+                    text += f"• **{entity_name}** ({entity_type})"
+                    if entity_desc:
+                        text += f" - {entity_desc[:60]}"
+                    text += "\n"
+
+            text += "\n💡 Try asking about one of these instead!\n\n"
+
+        # Show suggestions if available
         if suggestions and self.enable_suggestions:
             text += "*Did you mean:*\n"
             text += "\n".join(f"{i+1}. {s}" for i, s in enumerate(suggestions[:3]))
-            text += "\n\nOr try rephrasing your question."
-        else:
+            text += "\n\nOr try rephrasing your question.\n\n"
+
+        # Always show helpful tips
+        if not similar_entities and not suggestions:
             text += "*Try:*\n"
             text += "• Be more specific about what data you want\n"
             text += "• Include a time period (e.g., 'last month')\n"
@@ -441,10 +542,18 @@ class SlackBot:
             start = time.time()
             results = await self.wren.execute_sql(filtered_sql)
             duration = time.time() - start
-            
+
             # Log success
             QueryLogger.log_query_success(user_id, question, duration, len(results))
-            
+
+            # NEW: Save context for follow-up questions
+            self.context_manager.save_context(
+                user_id=user_id,
+                question=question,  # Original question, not SQL
+                sql=filtered_sql,
+                results=results
+            )
+
             # Show results
             await self._show_results(
                 client, channel_id, ts,
@@ -453,27 +562,22 @@ class SlackBot:
         
         except Exception as e:
             logger.error(f"Error executing query for {user_id}: {e}", exc_info=True)
-            QueryLogger.log_query_error(
-                user_id,
-                question if 'question' in locals() else "unknown",
-                str(e)
-            )
-            
+            question_val = question if 'question' in locals() else "unknown"
+            QueryLogger.log_query_error(user_id, question_val, str(e))
+
+            # NEW: Use ErrorHandler for user-friendly messages
+            error_type, friendly_msg = self.error_handler.classify_error(e, question_val)
+            logger.info(f"Execution error classified as: {error_type}")
+
             await client.chat_update(
                 channel=channel_id,
                 ts=ts,
-                text=f"❌ Query failed: {str(e)}",
+                text=friendly_msg,
                 blocks=[{
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": (
-                            f"❌ *Query failed:*\n{str(e)}\n\n"
-                            "*Try:*\n"
-                            "• Simplifying your question\n"
-                            "• Adding more specific filters\n"
-                            "• Choosing a shorter time period"
-                        )
+                        "text": friendly_msg
                     }
                 }]
             )
@@ -541,11 +645,16 @@ class SlackBot:
             })
         
         # Build blocks
+        result_text = f"✅ *Results* ({duration:.1f}s | {len(results)} rows)\n\n{text}"
+
+        # NEW: Add hint about follow-up questions
+        result_text += "\n\n💡 _You can ask follow-up questions like \"how about this month?\" or \"show by region\"_"
+
         blocks = [{
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"✅ *Results* ({duration:.1f}s | {len(results)} rows)\n\n{text}"
+                "text": result_text
             }
         }]
         
@@ -619,9 +728,9 @@ class SlackBot:
     async def handle_export_json(self, ack, body, client):
         """Handle JSON export request."""
         await ack()
-        
+
         try:
-            value = json.dumps(body["actions"][0]["value"])
+            value = json.loads(body["actions"][0]["value"])  # FIXED: was json.dumps
             results = value["results"]
             question = value["question"]
             user_id = body["user"]["id"]
@@ -732,3 +841,125 @@ class SlackBot:
             user=user_id,
             text="Thanks for your feedback! 🙏"
         )
+
+    async def handle_metrics(self, ack, command, client):
+        """
+        Handle /metrics command - show available metrics from MDL.
+        """
+        await ack()
+
+        user_id = command["user_id"]
+        channel_id = command["channel_id"]
+
+        # Check authorization
+        if not self.rls.is_authorized(user_id):
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="🚫 You are not authorized to use this bot.\n\nPlease contact your administrator for access."
+            )
+            return
+
+        try:
+            metrics = self.wren.get_available_metrics()
+
+            if not metrics:
+                message = (
+                    "📊 *No Metrics Defined*\n\n"
+                    "No metrics are currently defined in the semantic layer.\n\n"
+                    "To improve accuracy, deploy an MDL (Model Definition Language) with metrics.\n"
+                    "See `docs/MDL_USAGE.md` for instructions."
+                )
+            else:
+                message = f"📊 *Available Metrics* ({len(metrics)} total)\n\n"
+
+                for metric in metrics[:20]:  # Limit to 20 to avoid huge messages
+                    name = metric.get("name", "Unknown")
+                    desc = metric.get("description", "No description")
+                    base = metric.get("baseObject", "")
+                    time_grain = metric.get("timeGrain", "")
+
+                    message += f"• *{name}*"
+                    if time_grain:
+                        message += f" (by {time_grain})"
+                    message += f"\n  _{desc}_"
+                    if base:
+                        message += f"\n  Base: `{base}`"
+                    message += "\n\n"
+
+                if len(metrics) > 20:
+                    message += f"\n_... and {len(metrics) - 20} more metrics_"
+
+                message += "\n💡 *Tip:* You can ask questions using these metric names for more accurate results!"
+
+            await client.chat_postMessage(
+                channel=channel_id,
+                text=message
+            )
+
+        except Exception as e:
+            logger.error(f"Error in handle_metrics: {e}", exc_info=True)
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="❌ An error occurred while fetching metrics."
+            )
+
+    async def handle_models(self, ack, command, client):
+        """
+        Handle /models command - show available data models from MDL.
+        """
+        await ack()
+
+        user_id = command["user_id"]
+        channel_id = command["channel_id"]
+
+        # Check authorization
+        if not self.rls.is_authorized(user_id):
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="🚫 You are not authorized to use this bot.\n\nPlease contact your administrator for access."
+            )
+            return
+
+        try:
+            models = self.wren.get_available_models()
+
+            if not models:
+                message = (
+                    "📋 *No Models Defined*\n\n"
+                    "No data models are currently defined in the semantic layer.\n\n"
+                    "To improve accuracy, deploy an MDL (Model Definition Language) with your data models.\n"
+                    "See `docs/MDL_USAGE.md` for instructions."
+                )
+            else:
+                message = f"📋 *Available Data Models* ({len(models)} total)\n\n"
+
+                for model in models[:20]:  # Limit to 20 to avoid huge messages
+                    name = model.get("name", "Unknown")
+                    desc = model.get("description", "No description")
+                    cols = model.get("columns", 0)
+                    pk = model.get("primaryKey", "")
+
+                    message += f"• *{name}*"
+                    if cols:
+                        message += f" ({cols} columns)"
+                    message += f"\n  _{desc}_"
+                    if pk:
+                        message += f"\n  Primary key: `{pk}`"
+                    message += "\n\n"
+
+                if len(models) > 20:
+                    message += f"\n_... and {len(models) - 20} more models_"
+
+                message += "\n💡 *Tip:* You can query these models using natural language with `/ask`"
+
+            await client.chat_postMessage(
+                channel=channel_id,
+                text=message
+            )
+
+        except Exception as e:
+            logger.error(f"Error in handle_models: {e}", exc_info=True)
+            await client.chat_postMessage(
+                channel=channel_id,
+                text="❌ An error occurred while fetching models."
+            )

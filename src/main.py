@@ -36,6 +36,8 @@ from security import RowLevelSecurity
 from explainer import QueryExplainer
 from validator import SQLValidator
 from export_handler import ExportHandler
+from context_manager import ContextManager
+from rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +65,37 @@ async def main():
         
         # Initialize Wren AI client
         logger.info("Initializing Wren AI client...")
+
+        # Prepare database config for fallback
+        db_config = None
+        if config.DB_HOST and config.DB_DATABASE:
+            db_config = {
+                'host': config.DB_HOST,
+                'port': config.DB_PORT,
+                'database': config.DB_DATABASE,
+                'user': config.DB_USER,
+                'password': config.DB_PASSWORD,
+                'ssl': config.DB_SSL
+            }
+
         wren = WrenClient(
             base_url=config.WREN_URL,
-            timeout=config.MAX_QUERY_TIMEOUT_SECONDS
+            timeout=config.MAX_QUERY_TIMEOUT_SECONDS,
+            db_type=config.DB_TYPE,
+            db_config=db_config,
+            mdl_hash=config.WREN_MDL_HASH
         )
-        
+
+        # Load MDL (Model Definition Language) for semantic layer
+        logger.info("Loading MDL (semantic layer)...")
+        mdl_loaded = await wren.load_mdl()
+
+        if mdl_loaded:
+            logger.info(f"✅ MDL loaded: {len(wren._mdl_models)} models, {len(wren._mdl_metrics)} metrics")
+        else:
+            logger.warning("⚠️  No MDL deployed - bot will work but with reduced accuracy")
+            logger.warning("   See docs/MDL_USAGE.md for setup instructions")
+
         # Initialize security (RLS)
         logger.info("Initializing row-level security...")
         rls = RowLevelSecurity(
@@ -94,15 +122,28 @@ async def main():
             enable_charts=config.ENABLE_CHARTS,
             max_export_rows=config.MAX_ROWS_EXPORT
         )
-        
+
+        # NEW: Initialize context manager
+        logger.info("Initializing context manager...")
+        context_manager = ContextManager(
+            max_age_minutes=config.CONTEXT_MAX_AGE_MINUTES
+        )
+
+        # NEW: Initialize rate limiter
+        logger.info("Initializing rate limiter...")
+        rate_limiter = RateLimiter(
+            max_requests=config.RATE_LIMIT_MAX_REQUESTS,
+            window_minutes=config.RATE_LIMIT_WINDOW_MINUTES
+        )
+
         # Initialize Slack app
         logger.info("Initializing Slack app...")
         app = AsyncApp(
             token=config.SLACK_BOT_TOKEN,
             signing_secret=config.SLACK_SIGNING_SECRET
         )
-        
-        # Initialize bot with all components (now accepts config)
+
+        # Initialize bot with all components
         logger.info("Initializing Slack bot orchestrator...")
         bot = SlackBot(
             app=app,
@@ -111,7 +152,9 @@ async def main():
             explainer=explainer,
             validator=validator,
             export_handler=export_handler,
-            config=config  # Pass config for settings
+            config=config,
+            context_manager=context_manager,  # NEW
+            rate_limiter=rate_limiter  # NEW
         )
         
         # Run health check
@@ -132,7 +175,7 @@ async def main():
         logger.info("="*70)
         logger.info(f"📊 Wren AI: {config.WREN_URL}")
         logger.info(f"🤖 Claude Model: {config.ANTHROPIC_MODEL}")
-        logger.info(f"🗄️  Database: Redshift ({config.REDSHIFT_HOST})")
+        logger.info(f"🗄️  Database: {config.DB_TYPE.upper()} ({config.DB_HOST})")
         logger.info(f"👥 Configured users: {len(config.USER_ROLES)}")
         logger.info(f"🏢 Departments: {len(config.DEPT_ACCESS)}")
         logger.info("")

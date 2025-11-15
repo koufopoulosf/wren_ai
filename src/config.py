@@ -33,7 +33,8 @@ class Config:
         # Wren AI Configuration
         self.WREN_URL = os.getenv("WREN_URL", "http://wren-ai:8000")
         self.WREN_PROJECT_ID = os.getenv("WREN_PROJECT_ID", "analytics")
-        
+        self.WREN_MDL_HASH = os.getenv("WREN_MDL_HASH")  # Optional - auto-fetched if not set
+
         # Anthropic/Claude Configuration
         self.ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
         if not self.ANTHROPIC_API_KEY:
@@ -53,13 +54,21 @@ class Config:
         if not all([self.SLACK_BOT_TOKEN, self.SLACK_APP_TOKEN]):
             raise ValueError("SLACK_BOT_TOKEN and SLACK_APP_TOKEN are required")
         
-        # AWS Redshift Configuration
-        self.REDSHIFT_HOST = os.getenv("REDSHIFT_HOST")
-        self.REDSHIFT_PORT = int(os.getenv("REDSHIFT_PORT", "5439"))
-        self.REDSHIFT_DATABASE = os.getenv("REDSHIFT_DATABASE")
-        self.REDSHIFT_USER = os.getenv("REDSHIFT_USER")
-        self.REDSHIFT_PASSWORD = os.getenv("REDSHIFT_PASSWORD")
+        # Database Configuration (Redshift or Postgres)
+        self.DB_TYPE = os.getenv("DB_TYPE", "redshift").lower()  # "redshift" or "postgres"
+        self.DB_HOST = os.getenv("DB_HOST") or os.getenv("REDSHIFT_HOST")
+        self.DB_PORT = int(os.getenv("DB_PORT") or os.getenv("REDSHIFT_PORT", "5439"))
+        self.DB_DATABASE = os.getenv("DB_DATABASE") or os.getenv("REDSHIFT_DATABASE")
+        self.DB_USER = os.getenv("DB_USER") or os.getenv("REDSHIFT_USER")
+        self.DB_PASSWORD = os.getenv("DB_PASSWORD") or os.getenv("REDSHIFT_PASSWORD")
         self.DB_SSL = os.getenv("DB_SSL", "true").lower() == "true"
+
+        # Legacy Redshift support (deprecated - use DB_* vars)
+        self.REDSHIFT_HOST = self.DB_HOST
+        self.REDSHIFT_PORT = self.DB_PORT
+        self.REDSHIFT_DATABASE = self.DB_DATABASE
+        self.REDSHIFT_USER = self.DB_USER
+        self.REDSHIFT_PASSWORD = self.DB_PASSWORD
         
         # Safety Limits
         self.MAX_QUERY_TIMEOUT_SECONDS = int(
@@ -88,7 +97,20 @@ class Config:
         self.CONFIDENCE_THRESHOLD_LOW = float(
             os.getenv("CONFIDENCE_THRESHOLD_LOW", "0.60")
         )
-        
+
+        # Context Manager Settings (for follow-up questions)
+        self.CONTEXT_MAX_AGE_MINUTES = int(
+            os.getenv("CONTEXT_MAX_AGE_MINUTES", "30")
+        )
+
+        # Rate Limiting
+        self.RATE_LIMIT_MAX_REQUESTS = int(
+            os.getenv("RATE_LIMIT_MAX_REQUESTS", "10")
+        )
+        self.RATE_LIMIT_WINDOW_MINUTES = int(
+            os.getenv("RATE_LIMIT_WINDOW_MINUTES", "1")
+        )
+
         # User Roles and Department Access
         self.USER_ROLES = self._parse_user_roles()
         self.DEPT_ACCESS = self._parse_department_access()
@@ -151,7 +173,7 @@ class Config:
         logging.info(f"Log level: {log_level}")
         logging.info(f"Claude model: {self.ANTHROPIC_MODEL}")
         logging.info(f"Wren AI URL: {self.WREN_URL}")
-        logging.info(f"Redshift host: {self.REDSHIFT_HOST}")
+        logging.info(f"Database: {self.DB_TYPE} @ {self.DB_HOST}")
         logging.info("="*70)
     
     def _parse_user_roles(self) -> Dict[str, Dict[str, str]]:
@@ -256,8 +278,8 @@ class Config:
             "ANTHROPIC_API_KEY": self.ANTHROPIC_API_KEY,
             "SLACK_BOT_TOKEN": self.SLACK_BOT_TOKEN,
             "SLACK_APP_TOKEN": self.SLACK_APP_TOKEN,
-            "REDSHIFT_HOST": self.REDSHIFT_HOST,
-            "REDSHIFT_DATABASE": self.REDSHIFT_DATABASE,
+            "DB_HOST": self.DB_HOST,
+            "DB_DATABASE": self.DB_DATABASE,
         }
         
         missing = [k for k, v in required.items() if not v]

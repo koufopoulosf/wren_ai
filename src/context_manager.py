@@ -8,7 +8,6 @@ Enables users to say "how about this month?" after asking about last month.
 import logging
 from typing import Dict, Optional
 from datetime import datetime, timedelta
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
