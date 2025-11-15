@@ -35,7 +35,7 @@ if [ $? -eq 0 ]; then
     echo "   - How many orders from USA customers?"
     echo ""
     echo "🔄 Restart the Streamlit app to load the new schema:"
-    echo "   docker-compose restart streamlit"
+    echo "   docker-compose restart streamlit-app"
 else
     echo "❌ Failed to load sample data"
     exit 1
