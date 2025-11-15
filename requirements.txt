@@ -4,7 +4,6 @@ slack-sdk>=3.23.0
 
 # Async support
 aiohttp>=3.9.0
-asyncio-throttle>=1.0.2
 
 # HTTP client for Wren AI
 httpx>=0.25.0

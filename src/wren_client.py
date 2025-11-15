@@ -10,9 +10,10 @@ Improvements:
 
 import logging
 import asyncio
+import time
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import httpx
-from asyncio_throttle import Throttle
 from fuzzywuzzy import fuzz, process
 import redshift_connector
 
@@ -41,86 +42,91 @@ class WrenClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=timeout)
-        self.throttle = Throttle(rate_limit=10, period=1.0)
-        
+
+        # Simple rate limiting (10 req/sec)
+        self._last_request_time = None
+        self._min_request_interval = 0.1  # 100ms = 10 req/sec
+
         # Cache for schema (avoid repeated fetches)
         self._schema_cache = None
         self._entities_cache = []  # List of all entities (tables, columns, metrics)
-        
+
         # Redshift fallback (optional)
         self.redshift_config = redshift_config
         self._redshift_conn = None
-        
+
         logger.info(f"✅ Enhanced Wren client initialized: {base_url}")
         if redshift_config:
             logger.info("✅ Redshift fallback enabled")
+
+    async def _rate_limit(self):
+        """Simple rate limiting for Wren AI calls."""
+        if self._last_request_time:
+            elapsed = (datetime.now() - self._last_request_time).total_seconds()
+            if elapsed < self._min_request_interval:
+                await asyncio.sleep(self._min_request_interval - elapsed)
+
+        self._last_request_time = datetime.now()
     
     async def ask_question(
         self,
         question: str,
-        user_context: Optional[Dict] = None
+        user_context: Optional[Dict] = None,
+        max_wait: int = 30
     ) -> Dict:
         """
-        Convert natural language to SQL with enhanced entity discovery.
-        
+        Convert natural language to SQL using async polling API.
+
+        Args:
+            question: Natural language question
+            user_context: Optional context (department, etc.)
+            max_wait: Maximum seconds to wait for response
+
         Returns:
             {
                 'sql': str,
                 'confidence': float,
                 'suggestions': list,
-                'entities_found': list,  # NEW: Entities detected in question
-                'entities_missing': list,  # NEW: Entities user mentioned but don't exist
+                'entities_found': list,
+                'entities_missing': list,
                 'metadata': dict
             }
         """
         # Detect entities mentioned in question
         mentioned_entities = await self._extract_entities_from_question(question)
-        
+
         payload = {
-            "query": question,
-            "context": user_context or {}
+            "query": question
         }
-        
+
+        # Add optional parameters if needed
+        if user_context:
+            payload["custom_instruction"] = f"User context: {user_context}"
+
         max_retries = 3
+        query_id = None
+
+        # Step 1: Submit the question
         for attempt in range(max_retries):
             try:
-                async with self.throttle:
-                    logger.info(f"Asking Wren AI: '{question[:100]}...'")
-                    
-                    response = await self.client.post(
-                        f"{self.base_url}/api/v1/ask",  # Fixed endpoint
-                        json=payload
-                    )
-                    response.raise_for_status()
-                    
-                    result = response.json()
-                    
-                    # Extract response
-                    sql = result.get("sql", "")
-                    confidence = result.get("confidence", 0.0)
-                    suggestions = result.get("suggestions", [])
-                    
-                    # Check if entities mentioned exist
-                    entities_found, entities_missing = await self._validate_entities(
-                        mentioned_entities
-                    )
-                    
-                    logger.info(
-                        f"✅ Wren response: SQL={len(sql)}, "
-                        f"confidence={confidence:.2f}, "
-                        f"entities_found={len(entities_found)}, "
-                        f"entities_missing={len(entities_missing)}"
-                    )
-                    
-                    return {
-                        "sql": sql,
-                        "confidence": confidence,
-                        "suggestions": suggestions,
-                        "entities_found": entities_found,
-                        "entities_missing": entities_missing,
-                        "metadata": result.get("metadata", {})
-                    }
-            
+                await self._rate_limit()
+                logger.info(f"Submitting question to Wren AI: '{question[:100]}...'")
+
+                response = await self.client.post(
+                    f"{self.base_url}/v1/asks",  # ✅ Correct endpoint
+                    json=payload
+                )
+                response.raise_for_status()
+
+                result = response.json()
+                query_id = result.get("query_id")
+
+                if not query_id:
+                    raise Exception("No query_id in response")
+
+                logger.info(f"✅ Question submitted, query_id: {query_id}")
+                break
+
             except httpx.HTTPStatusError as e:
                 logger.error(f"❌ HTTP {e.response.status_code}")
                 if attempt == max_retries - 1:
@@ -128,20 +134,95 @@ class WrenClient:
                         f"Wren AI error {e.response.status_code}. "
                         "Please try rephrasing your question."
                     )
-            
+
             except httpx.TimeoutException:
                 logger.error(f"⏱️ Timeout (attempt {attempt + 1})")
                 if attempt == max_retries - 1:
                     raise Exception("Wren AI timeout. Try simplifying your question.")
-            
+
             except Exception as e:
                 logger.error(f"❌ Error: {e}", exc_info=True)
                 if attempt == max_retries - 1:
                     raise Exception(f"Failed to connect to Wren AI: {str(e)}")
-            
+
             await asyncio.sleep(2 ** attempt)
-        
-        raise Exception("Failed after all retries")
+
+        # Step 2: Poll for result
+        import time
+        start = time.time()
+        poll_interval = 1.0
+
+        while time.time() - start < max_wait:
+            try:
+                await self._rate_limit()
+
+                result_response = await self.client.get(
+                    f"{self.base_url}/v1/asks/{query_id}/result"
+                )
+                result_response.raise_for_status()
+
+                data = result_response.json()
+                status = data.get("status", "")
+
+                logger.debug(f"Poll status: {status}")
+
+                if status == "finished":
+                    # Extract SQL and metadata
+                    response_list = data.get("response", [])
+                    sql = response_list[0].get("sql", "") if response_list else ""
+
+                    # Calculate confidence based on status transitions
+                    confidence = 0.8 if sql else 0.0
+
+                    # Check if entities mentioned exist
+                    entities_found, entities_missing = await self._validate_entities(
+                        mentioned_entities
+                    )
+
+                    duration = time.time() - start
+                    logger.info(
+                        f"✅ Wren response ({duration:.1f}s): SQL={len(sql)}, "
+                        f"confidence={confidence:.2f}, "
+                        f"entities_found={len(entities_found)}, "
+                        f"entities_missing={len(entities_missing)}"
+                    )
+
+                    return {
+                        "sql": sql,
+                        "confidence": confidence,
+                        "suggestions": [],  # v1 API doesn't return suggestions
+                        "entities_found": entities_found,
+                        "entities_missing": entities_missing,
+                        "metadata": {
+                            "rephrased_question": data.get("rephrased_question"),
+                            "reasoning": data.get("sql_generation_reasoning"),
+                            "tables_used": data.get("retrieved_tables", [])
+                        }
+                    }
+
+                elif status == "failed":
+                    error = data.get("error", {})
+                    error_msg = error.get("message", "Unknown error")
+                    logger.error(f"❌ Wren AI failed: {error_msg}")
+                    raise Exception(f"Wren AI error: {error_msg}")
+
+                elif status == "stopped":
+                    raise Exception("Query was cancelled")
+
+                # Still processing, wait and retry
+                await asyncio.sleep(poll_interval)
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"❌ Polling error: HTTP {e.response.status_code}")
+                raise Exception(f"Failed to get result: HTTP {e.response.status_code}")
+
+            except Exception as e:
+                if "Wren AI error" in str(e) or "cancelled" in str(e):
+                    raise  # Re-raise known errors
+                logger.error(f"❌ Polling exception: {e}")
+                await asyncio.sleep(poll_interval)
+
+        raise Exception(f"Query timed out after {max_wait}s")
     
     async def _extract_entities_from_question(self, question: str) -> List[str]:
         """
@@ -283,38 +364,56 @@ class WrenClient:
     async def get_schema(self) -> Dict:
         """
         Get database schema from Wren AI.
-        
+
+        Note: Wren AI v1 REST API doesn't expose schema directly.
+        This would typically be accessed via GraphQL UI API.
+        For now, returns cached or empty schema.
+
         Returns:
             Schema with tables, columns, metrics, relationships
         """
         if self._schema_cache:
             return self._schema_cache
-        
+
         try:
-            async with self.throttle:
-                logger.info("Fetching schema from Wren AI")
-                
-                response = await self.client.get(
-                    f"{self.base_url}/api/v1/schema"
+            await self._rate_limit()
+            logger.info("Attempting to fetch schema from Wren AI")
+
+            # Try v1/models endpoint (if it exists)
+            response = await self.client.get(
+                f"{self.base_url}/v1/models"
+            )
+            response.raise_for_status()
+
+            schema = response.json()
+            self._schema_cache = schema
+
+            # Build entities cache
+            self._build_entities_cache(schema)
+
+            logger.info(
+                f"✅ Schema loaded: {len(self._entities_cache)} entities"
+            )
+
+            return schema
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logger.warning(
+                    "⚠️ Schema endpoint not available in Wren AI v1 REST API. "
+                    "Schema features will be limited."
                 )
-                response.raise_for_status()
-                
-                schema = response.json()
-                self._schema_cache = schema
-                
-                # Build entities cache
-                self._build_entities_cache(schema)
-                
-                logger.info(
-                    f"✅ Schema loaded: {len(self._entities_cache)} entities"
-                )
-                
-                return schema
-        
+            else:
+                logger.error(f"❌ Failed to fetch schema: HTTP {e.response.status_code}")
+
+            # Return empty schema rather than failing
+            self._schema_cache = {"tables": [], "relationships": [], "metrics": []}
+            return self._schema_cache
+
         except Exception as e:
             logger.error(f"❌ Failed to fetch schema: {e}")
             # Return empty schema rather than failing
-            self._schema_cache = {"tables": [], "relationships": []}
+            self._schema_cache = {"tables": [], "relationships": [], "metrics": []}
             return self._schema_cache
     
     def _build_entities_cache(self, schema: Dict):
@@ -346,30 +445,73 @@ class WrenClient:
                 'description': metric.get('description', '')
             })
     
-    async def execute_sql(self, sql: str) -> List[Dict]:
+    async def execute_sql(self, sql: str, max_wait: int = 30) -> List[Dict]:
         """
-        Execute SQL via Wren AI or fallback to direct Redshift.
+        Execute SQL via Wren AI async API or fallback to direct Redshift.
+
+        Args:
+            sql: SQL query to execute
+            max_wait: Maximum seconds to wait for execution
+
+        Returns:
+            List of result rows as dictionaries
         """
         try:
-            # Try Wren AI first
-            async with self.throttle:
-                logger.info(f"Executing SQL via Wren AI")
-                
-                response = await self.client.post(
-                    f"{self.base_url}/api/v1/query",  # More standard endpoint
-                    json={"sql": sql}
+            # Step 1: Submit SQL for execution
+            await self._rate_limit()
+            logger.info(f"Submitting SQL to Wren AI for execution")
+
+            response = await self.client.post(
+                f"{self.base_url}/v1/sql-answers",  # ✅ Correct endpoint
+                json={"sql": sql}
+            )
+            response.raise_for_status()
+
+            result = response.json()
+            query_id = result.get("query_id")
+
+            if not query_id:
+                raise Exception("No query_id in response")
+
+            logger.info(f"✅ SQL submitted, query_id: {query_id}")
+
+            # Step 2: Poll for execution result
+            start = time.time()
+            poll_interval = 1.0
+
+            while time.time() - start < max_wait:
+                await self._rate_limit()
+
+                result_response = await self.client.get(
+                    f"{self.base_url}/v1/sql-answers/{query_id}"
                 )
-                response.raise_for_status()
-                
-                result = response.json()
-                data = result.get("data", result.get("results", []))
-                
-                logger.info(f"✅ Query executed: {len(data)} rows")
-                return data
-        
+                result_response.raise_for_status()
+
+                data = result_response.json()
+                status = data.get("status", "")
+
+                logger.debug(f"Execution status: {status}")
+
+                if status == "finished":
+                    results = data.get("results", [])
+                    duration = time.time() - start
+                    logger.info(f"✅ Query executed ({duration:.1f}s): {len(results)} rows")
+                    return results
+
+                elif status == "failed":
+                    error = data.get("error", {})
+                    error_msg = error.get("message", "Unknown error")
+                    logger.error(f"❌ Execution failed: {error_msg}")
+                    raise Exception(f"Query execution failed: {error_msg}")
+
+                # Still processing
+                await asyncio.sleep(poll_interval)
+
+            raise Exception(f"Execution timed out after {max_wait}s")
+
         except Exception as e:
             logger.warning(f"Wren AI execution failed: {e}")
-            
+
             # Try Redshift fallback
             if self.redshift_config:
                 logger.info("Trying direct Redshift fallback...")
@@ -420,19 +562,19 @@ class WrenClient:
         """Check Wren AI health."""
         try:
             response = await self.client.get(
-                f"{self.base_url}/health",
+                f"{self.base_url.replace('/v1', '')}/health",  # Health is at root, not /v1
                 timeout=5
             )
-            
+
             is_healthy = response.status_code == 200
-            
+
             if is_healthy:
                 logger.info("✅ Wren AI healthy")
             else:
                 logger.warning(f"⚠️ Wren AI unhealthy: {response.status_code}")
-            
+
             return is_healthy
-        
+
         except Exception as e:
             logger.error(f"❌ Health check failed: {e}")
             return False

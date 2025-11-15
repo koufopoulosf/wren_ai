@@ -24,6 +24,8 @@ from explainer import QueryExplainer
 from validator import SQLValidator
 from export_handler import ExportHandler
 from config import Config
+from context_manager import ContextManager
+from rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -81,18 +83,20 @@ class SlackBot:
     """
     
     def __init__(
-        self, 
+        self,
         app: AsyncApp,
         wren: WrenClient,
         rls: RowLevelSecurity,
         explainer: QueryExplainer,
         validator: SQLValidator,
         export_handler: ExportHandler,
-        config: Config  # Now accepts config
+        config: Config,
+        context_manager: ContextManager,  # NEW
+        rate_limiter: RateLimiter  # NEW
     ):
         """
         Initialize bot with all components.
-        
+
         Args:
             app: Slack Bolt async app
             wren: Wren AI client
@@ -101,6 +105,8 @@ class SlackBot:
             validator: SQL validator
             export_handler: Export handler
             config: Configuration object
+            context_manager: Context manager for follow-up questions
+            rate_limiter: Rate limiter for preventing spam
         """
         self.app = app
         self.wren = wren
@@ -108,18 +114,20 @@ class SlackBot:
         self.explainer = explainer
         self.validator = validator
         self.export_handler = export_handler
-        
+        self.context_manager = context_manager  # NEW
+        self.rate_limiter = rate_limiter  # NEW
+
         # Use config values instead of hardcoded defaults
         self.max_rows_display = config.MAX_ROWS_DISPLAY
         self.confidence_high = config.CONFIDENCE_THRESHOLD_HIGH
         self.confidence_low = config.CONFIDENCE_THRESHOLD_LOW
         self.enable_clarification = config.ENABLE_PROGRESSIVE_CLARIFICATION
         self.enable_suggestions = config.ENABLE_ALTERNATIVE_SUGGESTIONS
-        
+
         # Register Slack handlers
         self._register_handlers()
-        
-        logger.info("✅ Slack bot initialized with config-driven settings")
+
+        logger.info("✅ Slack bot initialized with context and rate limiting support")
         logger.info(f"  Max rows display: {self.max_rows_display}")
         logger.info(f"  Confidence thresholds: high={self.confidence_high}, low={self.confidence_low}")
         logger.info(f"  Clarifications: {self.enable_clarification}")
@@ -224,13 +232,33 @@ class SlackBot:
             sql = wren_response.get("sql", "")
             confidence = wren_response.get("confidence", 0.0)
             suggestions = wren_response.get("suggestions", [])
-            
+            entities_missing = wren_response.get("entities_missing", [])
+
             # Handle no SQL generated
             if not sql:
                 QueryLogger.log_clarification(user_id, question, "No SQL generated")
+
+                # NEW: Try entity discovery to help user
+                similar_entities = []
+                if entities_missing:
+                    logger.info(f"🔍 Searching for similar entities to: {entities_missing}")
+                    for entity in entities_missing:
+                        similar = await self.wren.search_similar_entities(entity, limit=3)
+                        similar_entities.extend(similar)
+
+                    # Remove duplicates and keep top 5
+                    seen = set()
+                    unique_similar = []
+                    for entity in similar_entities:
+                        key = entity.get('name')
+                        if key and key not in seen:
+                            seen.add(key)
+                            unique_similar.append(entity)
+                    similar_entities = unique_similar[:5]
+
                 await self._handle_no_sql(
                     client, channel_id, thinking["ts"],
-                    question, suggestions, user_id
+                    question, suggestions, user_id, similar_entities
                 )
                 return
             
@@ -281,16 +309,43 @@ class SlackBot:
     
     async def _handle_no_sql(
         self, client, channel_id: str, ts: str,
-        question: str, suggestions: List, user_id: str
+        question: str, suggestions: List, user_id: str,
+        similar_entities: Optional[List[Dict]] = None
     ):
-        """Handle case where Wren couldn't generate SQL."""
+        """
+        Handle case where Wren couldn't generate SQL.
+
+        Args:
+            similar_entities: List of similar entities found via entity discovery
+        """
         text = "😕 I couldn't generate a query for that question.\n\n"
-        
+
+        # NEW: Show similar entities if found
+        if similar_entities:
+            text += "*🔍 I found these related items in the database:*\n"
+            for entity in similar_entities:
+                entity_name = entity.get('name', '')
+                entity_type = entity.get('type', 'item')
+                entity_desc = entity.get('description', '')
+                score = entity.get('score', 0)
+
+                # Only show reasonable matches (score > 60)
+                if score > 60:
+                    text += f"• **{entity_name}** ({entity_type})"
+                    if entity_desc:
+                        text += f" - {entity_desc[:60]}"
+                    text += "\n"
+
+            text += "\n💡 Try asking about one of these instead!\n\n"
+
+        # Show suggestions if available
         if suggestions and self.enable_suggestions:
             text += "*Did you mean:*\n"
             text += "\n".join(f"{i+1}. {s}" for i, s in enumerate(suggestions[:3]))
-            text += "\n\nOr try rephrasing your question."
-        else:
+            text += "\n\nOr try rephrasing your question.\n\n"
+
+        # Always show helpful tips
+        if not similar_entities and not suggestions:
             text += "*Try:*\n"
             text += "• Be more specific about what data you want\n"
             text += "• Include a time period (e.g., 'last month')\n"

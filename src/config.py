@@ -88,7 +88,20 @@ class Config:
         self.CONFIDENCE_THRESHOLD_LOW = float(
             os.getenv("CONFIDENCE_THRESHOLD_LOW", "0.60")
         )
-        
+
+        # Context Manager Settings (for follow-up questions)
+        self.CONTEXT_MAX_AGE_MINUTES = int(
+            os.getenv("CONTEXT_MAX_AGE_MINUTES", "30")
+        )
+
+        # Rate Limiting
+        self.RATE_LIMIT_MAX_REQUESTS = int(
+            os.getenv("RATE_LIMIT_MAX_REQUESTS", "10")
+        )
+        self.RATE_LIMIT_WINDOW_MINUTES = int(
+            os.getenv("RATE_LIMIT_WINDOW_MINUTES", "1")
+        )
+
         # User Roles and Department Access
         self.USER_ROLES = self._parse_user_roles()
         self.DEPT_ACCESS = self._parse_department_access()

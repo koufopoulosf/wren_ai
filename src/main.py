@@ -36,6 +36,8 @@ from security import RowLevelSecurity
 from explainer import QueryExplainer
 from validator import SQLValidator
 from export_handler import ExportHandler
+from context_manager import ContextManager
+from rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -94,15 +96,28 @@ async def main():
             enable_charts=config.ENABLE_CHARTS,
             max_export_rows=config.MAX_ROWS_EXPORT
         )
-        
+
+        # NEW: Initialize context manager
+        logger.info("Initializing context manager...")
+        context_manager = ContextManager(
+            max_age_minutes=config.CONTEXT_MAX_AGE_MINUTES
+        )
+
+        # NEW: Initialize rate limiter
+        logger.info("Initializing rate limiter...")
+        rate_limiter = RateLimiter(
+            max_requests=config.RATE_LIMIT_MAX_REQUESTS,
+            window_minutes=config.RATE_LIMIT_WINDOW_MINUTES
+        )
+
         # Initialize Slack app
         logger.info("Initializing Slack app...")
         app = AsyncApp(
             token=config.SLACK_BOT_TOKEN,
             signing_secret=config.SLACK_SIGNING_SECRET
         )
-        
-        # Initialize bot with all components (now accepts config)
+
+        # Initialize bot with all components
         logger.info("Initializing Slack bot orchestrator...")
         bot = SlackBot(
             app=app,
@@ -111,7 +126,9 @@ async def main():
             explainer=explainer,
             validator=validator,
             export_handler=export_handler,
-            config=config  # Pass config for settings
+            config=config,
+            context_manager=context_manager,  # NEW
+            rate_limiter=rate_limiter  # NEW
         )
         
         # Run health check
