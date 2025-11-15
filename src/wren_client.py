@@ -18,6 +18,8 @@ from typing import Dict, List, Optional, Tuple
 import httpx
 from fuzzywuzzy import fuzz, process
 from anthropic import Anthropic
+from schema_formatter import SchemaFormatter
+from cell_retriever import CellRetriever
 
 # Database connectors (import as needed)
 try:
@@ -84,6 +86,8 @@ class WrenClient:
         self.mdl_hash = mdl_hash  # Version hash for MDL
         self._mdl_models = []  # Extracted models for quick access
         self._mdl_metrics = []  # Extracted metrics for quick access
+        self._schema_formatter = None  # Schema formatter for dual formats
+        self._cell_retriever = None  # Cell value retriever
 
         # Database fallback (optional) - supports Redshift or Postgres
         self.db_type = db_type.lower()
@@ -962,6 +966,24 @@ Response:"""
                     }
                     self._entities_cache.append(entity)
 
+                # Initialize schema formatter with loaded MDL
+                if self._mdl_models:
+                    self._schema_formatter = SchemaFormatter(
+                        mdl_models=self._mdl_models,
+                        mdl_metrics=self._mdl_metrics
+                    )
+                    logger.info("✅ Schema formatter initialized")
+
+                    # Initialize cell retriever
+                    self._cell_retriever = CellRetriever(
+                        wren_client=self,
+                        max_cells_per_column=10
+                    )
+
+                    # Load cell cache in background (non-blocking)
+                    asyncio.create_task(self._cell_retriever.load_cell_cache())
+                    logger.info("✅ Cell retriever initialized (loading cache in background)")
+
                 logger.info(f"✅ MDL loaded successfully")
                 logger.info(f"   - MDL hash: {self.mdl_hash[:8] if self.mdl_hash else 'N/A'}...")
                 logger.info(f"   - Models: {len(self._mdl_models)}")
@@ -1198,18 +1220,19 @@ Response:"""
 
     def _generate_aliases(self, name: str, description: str = "") -> List[str]:
         """
-        Generate common aliases/synonyms for an entity.
+        Enhanced alias generation with comprehensive synonym matching.
 
         Creates variations like:
-        - total_revenue -> revenue, total revenue, rev
-        - order_count -> orders, order count, num orders
+        - total_revenue -> revenue, total revenue, rev, sales, income, turnover, earnings
+        - order_count -> orders, order count, num orders, number of orders, purchase count
+        - customer_name -> customer, cust, client, buyer, user, account
 
         Args:
             name: Entity name
             description: Optional description to extract keywords from
 
         Returns:
-            List of aliases
+            List of aliases (up to 15)
         """
         if not name:
             return []
@@ -1217,26 +1240,40 @@ Response:"""
         aliases = []
         name_lower = name.lower()
 
-        # Add variations of the name
-        # Remove common prefixes
-        for prefix in ['total_', 'num_', 'count_', 'avg_', 'sum_', 'max_', 'min_']:
+        # Remove common prefixes and add as alias
+        for prefix in ['total_', 'num_', 'count_', 'avg_', 'sum_', 'max_', 'min_', 'total', 'num', 'count']:
             if name_lower.startswith(prefix):
                 aliases.append(name_lower.replace(prefix, ''))
+            if name_lower.startswith(prefix + '_'):
+                aliases.append(name_lower.replace(prefix + '_', ''))
 
         # Replace underscores with spaces
         if '_' in name_lower:
             aliases.append(name_lower.replace('_', ' '))
+            aliases.append(name_lower.replace('_', ''))  # Remove entirely
 
-        # Common abbreviations
+        # Enhanced business term mappings
         abbreviations = {
-            'revenue': ['rev', 'sales', 'income'],
-            'customer': ['cust', 'client'],
-            'order': ['orders', 'purchase', 'purchases'],
-            'user': ['users', 'member', 'members'],
-            'count': ['num', 'number', 'total'],
+            'revenue': ['rev', 'sales', 'income', 'turnover', 'earnings'],
+            'customer': ['cust', 'client', 'buyer', 'user', 'account'],
+            'order': ['orders', 'purchase', 'purchases', 'transaction', 'transactions'],
+            'product': ['products', 'item', 'items', 'sku', 'skus'],
+            'user': ['users', 'member', 'members', 'customer', 'customers'],
+            'count': ['num', 'number', 'total', 'qty', 'quantity'],
             'average': ['avg', 'mean'],
-            'quantity': ['qty', 'amount'],
-            'price': ['cost', 'value'],
+            'quantity': ['qty', 'amount', 'volume'],
+            'price': ['cost', 'value', 'rate'],
+            'date': ['time', 'timestamp', 'when'],
+            'amount': ['value', 'total', 'sum'],
+            'status': ['state', 'condition'],
+            'type': ['kind', 'category', 'class'],
+            'name': ['title', 'label'],
+            'id': ['identifier', 'key'],
+            'description': ['desc', 'details'],
+            'address': ['location', 'addr'],
+            'phone': ['telephone', 'tel'],
+            'email': ['mail', 'e-mail'],
+            'category': ['cat', 'group', 'type'],
         }
 
         # Add abbreviations if name contains these words
@@ -1247,12 +1284,19 @@ Response:"""
                 for abbrev in abbrevs:
                     aliases.append(name_lower.replace(word, abbrev))
 
+        # Extract keywords from description
+        if description:
+            desc_lower = description.lower()
+            for word, abbrevs in abbreviations.items():
+                if word in desc_lower and word not in name_lower:
+                    aliases.extend(abbrevs)
+
         # Remove duplicates and the original name
         aliases = list(set(aliases))
         if name_lower in aliases:
             aliases.remove(name_lower)
 
-        return aliases[:10]  # Limit to 10 aliases per entity
+        return aliases[:15]  # Limit to 15 aliases per entity
 
     def _calculate_hash(self, mdl: Dict) -> str:
         """
@@ -1300,3 +1344,39 @@ Response:"""
             }
             for metric in self._mdl_metrics
         ]
+
+    def get_schema_ddl(self) -> str:
+        """
+        Get schema in DDL format (for SQL generation).
+
+        Returns:
+            DDL-formatted schema string
+        """
+        if not self._schema_formatter:
+            return ""
+        return self._schema_formatter.to_ddl(
+            include_comments=True,
+            include_examples=True
+        )
+
+    def get_schema_markdown(self) -> str:
+        """
+        Get schema in Markdown format (for LLM reasoning).
+
+        Returns:
+            Markdown-formatted schema string
+        """
+        if not self._schema_formatter:
+            return ""
+        return self._schema_formatter.to_markdown(include_metrics=True)
+
+    def get_schema_compact(self) -> str:
+        """
+        Get compact schema (for token efficiency).
+
+        Returns:
+            Compact schema string
+        """
+        if not self._schema_formatter:
+            return ""
+        return self._schema_formatter.to_compact()
