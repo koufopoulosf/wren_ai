@@ -1,5 +1,5 @@
 """
-Constants and configuration values for WrenAI.
+Constants and configuration values for Data Assistant.
 
 This module centralizes all magic numbers and configuration constants
 to improve maintainability and make the codebase easier to understand.

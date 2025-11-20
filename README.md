@@ -1,4 +1,4 @@
-# 🤖 Wren AI Data Assistant
+# 🤖 Data Assistant
 
 **Ask questions about your data in natural language and get instant SQL, visualizations, and insights.**
 
@@ -41,7 +41,7 @@ Built with modern software engineering principles: **Single Responsibility**, **
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   WrenAssistant (UI Coordinator)                │
+│                 DataAssistant (UI Coordinator)                  │
 │     • Component initialization                                  │
 │     • Session management                                        │
 │     • Delegates to PipelineOrchestrator                         │
@@ -123,7 +123,7 @@ Built with modern software engineering principles: **Single Responsibility**, **
 
 ```bash
 # Clone or navigate to the project
-cd wren_ai
+cd data_assistant
 
 # Create environment file with your API key
 cat > .env << 'EOF'
@@ -173,7 +173,7 @@ List all pending trades for Ethereum
 ### Root Files
 
 ```
-wren_ai/
+data_assistant/
 ├── streamlit_app.py           # Main Streamlit UI application (~835 lines)
 ├── docker-compose.yml         # Service orchestration (postgres + streamlit)
 ├── Dockerfile                 # Streamlit app container build
@@ -198,19 +198,19 @@ wren_ai/
 
 - **`llm_utils.py`** - **NEW!** Reusable LLM API utilities (async calls, retry logic)
 - **`constants.py`** - **NEW!** Centralized constants (no more magic numbers!)
-- **`exceptions.py`** - **NEW!** Custom exception hierarchy (WrenAIError, LLMError, etc.)
+- **`exceptions.py`** - **NEW!** Custom exception hierarchy (DataAssistantError, LLMError, etc.)
 
 ### Code Quality Improvements
 
 **Before Refactoring:**
 - 40+ lines of duplicate code across 3 files
-- 280+ line WrenAssistant class doing 4-5 different jobs
+- 280+ line DataAssistant class doing 4-5 different jobs
 - Magic numbers scattered throughout
 - Private attribute access violations
 
 **After Refactoring:**
 - ✅ **0 lines of duplicate code** (100% elimination)
-- ✅ **130 line WrenAssistant** focused on UI coordination (53% reduction)
+- ✅ **130 line DataAssistant** focused on UI coordination (53% reduction)
 - ✅ **9 focused classes** each with single responsibility
 - ✅ **Proper encapsulation** with public methods only
 - ✅ **Reusable utilities** shared across all modules
@@ -255,8 +255,8 @@ DB_TYPE=postgres  # or 'redshift' for AWS Redshift
 DB_HOST=postgres
 DB_PORT=5432
 DB_DATABASE=cryptoDB
-DB_USER=wren_user
-DB_PASSWORD=wren_password
+DB_USER=data_assistant_user
+DB_PASSWORD=data_assistant_password
 DB_SSL=false  # Set to 'true' for Redshift or remote databases
 
 # Optional - Claude model
@@ -391,7 +391,7 @@ docker-compose restart
 
 ```bash
 # Verify PostgreSQL is running
-docker-compose exec postgres psql -U wren_user -d cryptoDB -c "SELECT 1;"
+docker-compose exec postgres psql -U data_assistant_user -d cryptoDB -c "SELECT 1;"
 
 # Check Streamlit logs
 docker-compose logs -f streamlit-app
@@ -460,7 +460,7 @@ This codebase follows industry best practices for maintainable software:
 #### 1. **Single Responsibility Principle (SRP)**
 Each class has exactly one reason to change:
 
-- **WrenAssistant**: UI coordination and component initialization
+- **DataAssistant**: UI coordination and component initialization
 - **PipelineOrchestrator**: Workflow management and coordination
 - **QuestionClassifier**: Question intent classification
 - **ResponseGenerator**: Conversational response generation
@@ -502,7 +502,7 @@ orchestrator = PipelineOrchestrator(
 
 ```
 UI Layer:          streamlit_app.py (UI rendering, user interaction)
-Coordination:      WrenAssistant (initialization, delegation)
+Coordination:      DataAssistant (initialization, delegation)
 Workflow:          PipelineOrchestrator (process coordination)
 Business Logic:    Individual components (classification, generation, etc.)
 Utilities:         LLMUtils, constants, exceptions (shared functionality)
@@ -513,7 +513,7 @@ Utilities:         LLMUtils, constants, exceptions (shared functionality)
 | Metric | Before | After | Change |
 |--------|--------|-------|--------|
 | Code duplication | 40+ lines | 0 lines | ✅ -100% |
-| WrenAssistant size | 280 lines | 130 lines | ✅ -53% |
+| DataAssistant size | 280 lines | 130 lines | ✅ -53% |
 | Files with single responsibility | 3 | 9 | ✅ +200% |
 | Magic numbers | Everywhere | Centralized | ✅ Fixed |
 | Private access violations | Yes | None | ✅ Fixed |

@@ -3,7 +3,7 @@ Simplified SQL generation using Claude.
 
 Clean architecture:
 - Directly calls Claude for SQL generation with full DDL
-- No external Wren AI Service dependency
+- No external dependencies beyond Claude API
 - No vector search, embeddings, or semantic matching
 - Claude's excellent semantic understanding handles schema reasoning
 - Supports both PostgreSQL and Redshift

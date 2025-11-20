@@ -247,8 +247,6 @@ class DataAssistant:
     - QuestionClassifier: Classifies question intent
     - ResponseGenerator: Generates conversational responses
     - PipelineOrchestrator: Coordinates the workflow
-
-    Note: Renamed from WrenAssistant to avoid confusion - we don't use Wren AI.
     """
 
     def __init__(self):

@@ -2,7 +2,7 @@
 Configuration Module
 
 Manages environment variables, logging setup, and application configuration
-for Wren AI Data Assistant (Streamlit).
+for Data Assistant (Streamlit).
 """
 
 import os
@@ -18,7 +18,7 @@ load_dotenv()
 
 class Config:
     """
-    Central configuration manager for the Wren AI Data Assistant.
+    Central configuration manager for the Data Assistant.
 
     Handles:
     - Environment variable loading and validation
@@ -45,8 +45,8 @@ class Config:
         self.DB_HOST = os.getenv("DB_HOST", "postgres")
         self.DB_PORT = int(os.getenv("DB_PORT", "5432"))
         self.DB_DATABASE = os.getenv("DB_DATABASE", "analytics")
-        self.DB_USER = os.getenv("DB_USER", "wren_user")
-        self.DB_PASSWORD = os.getenv("DB_PASSWORD", "wren_password")
+        self.DB_USER = os.getenv("DB_USER", "data_assistant_user")
+        self.DB_PASSWORD = os.getenv("DB_PASSWORD", "data_assistant_password")
         self.DB_SSL = os.getenv("DB_SSL", "false").lower() == "true"
 
         # Display & Export Settings
@@ -78,7 +78,7 @@ class Config:
         - Message
         """
         log_level = os.getenv("LOG_LEVEL", "INFO")
-        log_file = os.getenv("LOG_FILE", "/app/logs/wren-app.log")
+        log_file = os.getenv("LOG_FILE", "/app/logs/data-assistant.log")
 
         # Create logs directory if it doesn't exist
         log_dir = Path(log_file).parent
@@ -113,7 +113,7 @@ class Config:
 
         # Log startup
         logging.info("="*70)
-        logging.info("WREN AI DATA ASSISTANT - Configuration Initialized")
+        logging.info("DATA ASSISTANT - Configuration Initialized")
         logging.info("="*70)
         logging.info(f"Log file: {log_file}")
         logging.info(f"Log level: {log_level}")
