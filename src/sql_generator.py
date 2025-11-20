@@ -1,11 +1,11 @@
 """
-Simplified SQL generation using Claude + Vector Search.
+Simplified SQL generation using Claude.
 
-Replaces the complex WrenClient with a cleaner architecture:
-- Uses vector search to find relevant schema elements
-- Directly calls Claude for SQL generation
+Clean architecture:
+- Directly calls Claude for SQL generation with full DDL
 - No external Wren AI Service dependency
-- No manual MDL, entity cache, or fuzzy matching
+- No vector search, embeddings, or semantic matching
+- Claude's excellent semantic understanding handles schema reasoning
 """
 
 import logging
@@ -13,18 +13,16 @@ from typing import List, Dict, Any, Optional
 import asyncio
 import asyncpg
 from anthropic import Anthropic
-from src.vector_search import VectorSearch
 
 logger = logging.getLogger(__name__)
 
 
 class SQLGenerator:
-    """Generate SQL from natural language using Claude + vector search."""
+    """Generate SQL from natural language using Claude."""
 
     def __init__(
         self,
         anthropic_client: Anthropic,
-        vector_search: VectorSearch,
         db_config: Dict[str, str],
         model: str = "claude-sonnet-4-20250514"
     ):
@@ -33,12 +31,10 @@ class SQLGenerator:
 
         Args:
             anthropic_client: Anthropic API client
-            vector_search: VectorSearch instance for semantic search
             db_config: Database connection config
             model: Claude model to use
         """
         self.anthropic = anthropic_client
-        self.vector_search = vector_search
         self.db_config = db_config
         self.model = model
         self._db_conn = None
@@ -136,27 +132,11 @@ class SQLGenerator:
             Dict with keys: sql, explanation, context_used
         """
         try:
-            # 1. Use vector search to find relevant schema entities
-            logger.info(f"Searching for relevant schema for: {question}")
-            context_matches = await self.vector_search.search(
-                query=question,
-                limit=context_limit,
-                score_threshold=0.3  # Lower threshold for more results
-            )
-
-            # 2. Build context from vector search results
-            context_parts = []
-            for match in context_matches:
-                context_parts.append(
-                    f"- {match['text']} (relevance: {match['score']:.2f})"
-                )
-
-            schema_context = "\n".join(context_parts) if context_parts else "No specific schema context found"
-
-            # 3. Get full schema DDL
+            # 1. Get full schema DDL
+            logger.info(f"Generating SQL for: {question}")
             schema_ddl = await self.get_schema_ddl()
 
-            # 4. Build conversation context (if available)
+            # 2. Build conversation context (if available)
             conversation_context = ""
             if conversation_history and len(conversation_history) > 0:
                 # Include last 5 messages for context (to avoid token limits)
@@ -178,14 +158,11 @@ class SQLGenerator:
 Note: The user's current question may reference this conversation history. Use it to understand context like follow-up questions (e.g., "yes please proceed", "show me more", "what about X?").
 """
 
-            # 5. Build Claude prompt
+            # 3. Build Claude prompt
             prompt = f"""You are a SQL expert. Generate a PostgreSQL query to answer the user's question.
 
 ## Database Schema (DDL)
-{schema_ddl}
-
-## Relevant Schema Context (from semantic search)
-{schema_context}{conversation_context}
+{schema_ddl}{conversation_context}
 
 ## User Question
 {question}
@@ -204,7 +181,7 @@ Note: The user's current question may reference this conversation history. Use i
 
 SQL Query:"""
 
-            # 6. Call Claude
+            # 4. Call Claude
             logger.info("Calling Claude to generate SQL...")
             loop = asyncio.get_event_loop()
             message = await loop.run_in_executor(
@@ -243,8 +220,8 @@ SQL Query:"""
 
             return {
                 "sql": sql,
-                "explanation": f"Used {len(context_matches)} relevant schema entities",
-                "context_used": context_matches
+                "explanation": "Generated SQL using full schema DDL",
+                "context_used": []
             }
 
         except Exception as e:

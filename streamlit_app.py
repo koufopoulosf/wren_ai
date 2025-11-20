@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from config import Config
-from vector_search import VectorSearch
 from sql_generator import SQLGenerator
-from schema_embedder import SchemaEmbedder
 from result_validator import ResultValidator
 from query_explainer import QueryExplainer
 
@@ -239,12 +237,10 @@ class WrenAssistant:
     def __init__(self):
         """Initialize AI assistant."""
         self.config = Config()
-        self.vector_search = None
         self.sql_generator = None
         self.result_validator = None
         self.explainer = None
         self.initialized = False
-        self.schema_embedded = False
         self.schema_info = {"tables": [], "relationships": []}
 
     async def initialize(self):
@@ -262,41 +258,28 @@ class WrenAssistant:
             "ssl": "require" if self.config.DB_SSL else "disable"
         }
 
-        # Initialize vector search
-        self.vector_search = VectorSearch(
-            qdrant_host=self.config.QDRANT_HOST,
-            qdrant_port=self.config.QDRANT_PORT,
-            ollama_url=self.config.OLLAMA_URL,
-            embedding_model=self.config.EMBEDDING_MODEL,
-            collection_name=self.config.VECTOR_COLLECTION
-        )
-
-        # Initialize SQL generator
+        # Initialize SQL generator (simplified - no vector search needed)
         self.sql_generator = SQLGenerator(
             anthropic_client=self.config.anthropic_client,
-            vector_search=self.vector_search,
             db_config=db_config,
             model=self.config.ANTHROPIC_MODEL
         )
 
-        # Check if schema is embedded, if not embed it
-        collection_info = self.vector_search.get_collection_info()
-        if collection_info.get('points_count', 0) == 0:
-            logger.info("Schema not embedded yet, embedding now...")
-            schema_embedder = SchemaEmbedder(db_config, self.vector_search)
-            await schema_embedder.refresh_schema_embeddings()
-            self.schema_embedded = True
-            logger.info("✅ Schema embedded successfully")
-        else:
-            logger.info(f"✅ Schema already embedded ({collection_info.get('points_count')} entities)")
-
-        # Load schema info for display
-        schema_embedder = SchemaEmbedder(db_config, self.vector_search)
-        await schema_embedder.connect()
+        # Load basic schema info for display
+        await self.sql_generator.connect_db()
         try:
-            self.schema_info = await schema_embedder.introspect_schema()
-        finally:
-            await schema_embedder.disconnect()
+            # Get table names and basic structure
+            tables_result = await self.sql_generator._db_conn.fetch("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """)
+            self.schema_info["tables"] = [{"name": row["table_name"]} for row in tables_result]
+            logger.info(f"✅ Loaded schema: {len(self.schema_info['tables'])} tables")
+        except Exception as e:
+            logger.warning(f"Could not load schema info: {e}")
+            self.schema_info["tables"] = []
 
         # Initialize validators
         self.result_validator = ResultValidator(
