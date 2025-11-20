@@ -12,6 +12,7 @@ from .question_classifier import QuestionClassifier
 from .response_generator import ResponseGenerator
 from .sql_generator import SQLGenerator
 from .result_validator import ResultValidator
+from .context_manager import ContextManager
 from .exceptions import DataAssistantError
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,15 @@ logger = logging.getLogger(__name__)
 
 class PipelineOrchestrator:
     """
-    Orchestrates the complete query processing pipeline.
+    Orchestrates the complete query processing pipeline with context management.
 
     This class coordinates the workflow:
-    1. Classify the question
-    2. Generate SQL if it's a data query
-    3. Execute and validate results
-    4. Generate conversational response
+    1. Resolve references in question using context
+    2. Classify the question
+    3. Generate SQL if it's a data query
+    4. Execute and validate results
+    5. Generate conversational response
+    6. Store results in context for future reference
 
     Single Responsibility: Pipeline coordination and workflow management
     """
@@ -35,7 +38,8 @@ class PipelineOrchestrator:
         classifier: QuestionClassifier,
         response_generator: ResponseGenerator,
         sql_generator: SQLGenerator,
-        result_validator: ResultValidator
+        result_validator: ResultValidator,
+        context_manager: ContextManager
     ):
         """
         Initialize pipeline orchestrator.
@@ -45,24 +49,28 @@ class PipelineOrchestrator:
             response_generator: Response generator instance
             sql_generator: SQL generator instance
             result_validator: Result validator instance
+            context_manager: Context manager for conversation memory
         """
         self.classifier = classifier
         self.response_generator = response_generator
         self.sql_generator = sql_generator
         self.result_validator = result_validator
-        logger.info("✅ Pipeline orchestrator initialized")
+        self.context_manager = context_manager
+        logger.info("✅ Pipeline orchestrator initialized with context manager")
 
     async def process(
         self,
         question: str,
+        session_id: str = "default",
         conversation_history: list = None
     ) -> Dict[str, Any]:
         """
-        Process user question through the complete pipeline.
+        Process user question through the complete pipeline with context management.
 
         Args:
             question: User's natural language question
-            conversation_history: List of previous messages for context
+            session_id: Session identifier for context management
+            conversation_history: List of previous messages for context (deprecated, use context manager)
 
         Returns:
             {
@@ -72,19 +80,50 @@ class PipelineOrchestrator:
                 'explanation': str,
                 'warnings': List[str],
                 'suggestions': List[str],
-                'confidence': float
+                'confidence': float,
+                'resolved_question': str  # Question after reference resolution
             }
         """
         response = self._create_empty_response()
+        original_question = question
 
         try:
-            # Step 1: Classify the question
+            # Store user question in context
+            self.context_manager.add_message(
+                session_id=session_id,
+                role='user',
+                content=question
+            )
+
+            # Step 1: Resolve references using context ("show me more" → "show me more Bitcoin prices")
+            resolved_question = await self.context_manager.resolve_references(
+                question=question,
+                session_id=session_id
+            )
+
+            # Use resolved question for processing
+            question = resolved_question
+            response['resolved_question'] = resolved_question
+
+            if resolved_question != original_question:
+                logger.info(f"Resolved reference: '{original_question}' → '{resolved_question}'")
+
+            # Step 2: Classify the question
             classification = await self.classifier.classify(question)
 
-            # Step 2: If it's not a data query, return the natural language response
+            # If it's not a data query, return the natural language response
             if not classification.get('is_data_query', True):
                 response['success'] = True
                 response['explanation'] = classification.get('response', '')
+
+                # Store meta query response in context
+                self.context_manager.add_message(
+                    session_id=session_id,
+                    role='assistant',
+                    content=response['explanation'],
+                    metadata={'type': 'meta_query'}
+                )
+
                 return response
 
             # Step 3: Generate SQL and execute query
@@ -128,9 +167,31 @@ class PipelineOrchestrator:
 
             response['success'] = True
 
+            # Store assistant response in context
+            self.context_manager.add_message(
+                session_id=session_id,
+                role='assistant',
+                content=response['explanation'],
+                sql=response['sql'],
+                results=response['results'],
+                metadata={
+                    'confidence': response['confidence'],
+                    'warnings': response['warnings'],
+                    'suggestions': response['suggestions']
+                }
+            )
+
         except Exception as e:
             logger.error(f"Pipeline processing error: {e}", exc_info=True)
             response['warnings'].append(f"❌ Error: {str(e)}")
+
+            # Store error response in context
+            self.context_manager.add_message(
+                session_id=session_id,
+                role='assistant',
+                content=f"Error: {str(e)}",
+                metadata={'error': True}
+            )
 
         return response
 
@@ -149,7 +210,8 @@ class PipelineOrchestrator:
             'explanation': '',
             'warnings': [],
             'suggestions': [],
-            'confidence': 0.0
+            'confidence': 0.0,
+            'resolved_question': ''  # Question after reference resolution
         }
 
     @staticmethod

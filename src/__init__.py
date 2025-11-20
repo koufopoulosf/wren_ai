@@ -1,8 +1,8 @@
 """
-Wren AI Data Assistant
+Data Assistant
 
 Production-ready Streamlit application for querying databases
-using natural language via Wren AI and Claude Sonnet 4.5.
+using natural language via Claude Sonnet 4.5.
 """
 
 __version__ = "1.0.0"
@@ -17,6 +17,7 @@ from .result_validator import ResultValidator
 from .question_classifier import QuestionClassifier
 from .response_generator import ResponseGenerator
 from .pipeline_orchestrator import PipelineOrchestrator
+from .context_manager import ContextManager, ConversationContext, Message
 
 # Utilities
 from .llm_utils import LLMUtils
@@ -32,6 +33,9 @@ __all__ = [
     "QuestionClassifier",
     "ResponseGenerator",
     "PipelineOrchestrator",
+    "ContextManager",
+    "ConversationContext",
+    "Message",
     # Utilities
     "LLMUtils",
 ]

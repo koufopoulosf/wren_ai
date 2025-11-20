@@ -35,6 +35,7 @@ from query_explainer import QueryExplainer
 from question_classifier import QuestionClassifier
 from response_generator import ResponseGenerator
 from pipeline_orchestrator import PipelineOrchestrator
+from context_manager import ContextManager
 
 # Page config
 st.set_page_config(
@@ -255,6 +256,7 @@ class DataAssistant:
         self.explainer = None
         self.classifier = None
         self.response_generator = None
+        self.context_manager = None
         self.orchestrator = None
         self.initialized = False
         self.schema_info = {"tables": [], "relationships": []}
@@ -315,20 +317,32 @@ class DataAssistant:
             model=self.config.ANTHROPIC_MODEL
         )
 
-        # Initialize orchestrator with all components
+        # Initialize context manager for strong conversation memory
+        self.context_manager = ContextManager(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        # Initialize orchestrator with all components including context manager
         self.orchestrator = PipelineOrchestrator(
             classifier=self.classifier,
             response_generator=self.response_generator,
             sql_generator=self.sql_generator,
-            result_validator=self.result_validator
+            result_validator=self.result_validator,
+            context_manager=self.context_manager
         )
 
         self.initialized = True
-        logger.info("✅ DataAssistant fully initialized with new architecture")
+        logger.info("✅ DataAssistant fully initialized with context management")
 
-    async def process_question(self, question: str, conversation_history: list = None) -> Dict[str, Any]:
+    async def process_question(
+        self,
+        question: str,
+        session_id: str = "default",
+        conversation_history: list = None
+    ) -> Dict[str, Any]:
         """
-        Process user question through the pipeline orchestrator.
+        Process user question through the pipeline orchestrator with context management.
 
         This method now delegates to the PipelineOrchestrator for all
         question processing logic, keeping DataAssistant focused on
@@ -336,7 +350,8 @@ class DataAssistant:
 
         Args:
             question: User's natural language question
-            conversation_history: List of previous messages for context (optional)
+            session_id: Session identifier for context management
+            conversation_history: List of previous messages for context (deprecated - use context manager)
 
         Returns:
             {
@@ -346,12 +361,14 @@ class DataAssistant:
                 'explanation': str,
                 'warnings': List[str],
                 'suggestions': List[str],
-                'confidence': float
+                'confidence': float,
+                'resolved_question': str  # Question after reference resolution
             }
         """
-        # Delegate to orchestrator
+        # Delegate to orchestrator with session_id for context management
         return await self.orchestrator.process(
             question=question,
+            session_id=session_id,
             conversation_history=conversation_history
         )
 
@@ -701,11 +718,21 @@ def main():
         with thinking_placeholder:
             st.info("🤔 Thinking...")
 
+        # Get or create session_id for context management
+        if 'session_id' not in st.session_state:
+            import hashlib
+            import time
+            st.session_state.session_id = hashlib.md5(f"{time.time()}".encode()).hexdigest()[:16]
+
         # Get conversation history (exclude the current question, which was just added)
         conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
 
-        # Process question with conversation context
-        response = run_async(st.session_state.assistant.process_question(question, conversation_history=conversation_history))
+        # Process question with conversation context and session_id
+        response = run_async(st.session_state.assistant.process_question(
+            question=question,
+            session_id=st.session_state.session_id,
+            conversation_history=conversation_history
+        ))
 
         # Clear thinking message
         thinking_placeholder.empty()
