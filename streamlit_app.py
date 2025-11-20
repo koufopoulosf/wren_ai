@@ -539,19 +539,76 @@ def display_message(role: str, content: str, metadata: Dict = None):
                 st.info(f"💡 Suggestions: {', '.join(suggestions)}")
 
 
+def get_available_chart_types(df: pd.DataFrame) -> list:
+    """Determine which chart types are suitable for the given dataframe."""
+    available_charts = []
+
+    # Get column information
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    all_cols = df.columns.tolist()
+    num_rows = len(df)
+    num_numeric = len(numeric_cols)
+    num_cols = len(all_cols)
+
+    # Only show charts if we have actual data to visualize
+    if num_rows == 0:
+        return ["Table"]
+
+    # Bar Chart: needs at least 1 numeric column and more than 1 row for meaningful visualization
+    if num_numeric >= 1 and num_rows > 1:
+        available_charts.append("Bar Chart")
+
+    # Stacked Bar: needs at least 1 numeric column and more than 1 row
+    if num_numeric >= 1 and num_rows > 1:
+        available_charts.append("Stacked Bar")
+
+    # Line Chart: needs at least 1 numeric column and more than 1 row (useful for time series)
+    if num_numeric >= 1 and num_rows > 1:
+        available_charts.append("Line Chart")
+
+    # Scatter Plot: needs at least 2 numeric columns and more than 1 row
+    if num_numeric >= 2 and num_rows > 1:
+        available_charts.append("Scatter Plot")
+
+    # Pie Chart: needs at least 1 numeric column, at least 2 total columns, and multiple rows
+    if num_numeric >= 1 and num_cols >= 2 and num_rows > 1:
+        available_charts.append("Pie Chart")
+
+    # Treemap: needs at least 2 columns and more than 1 row
+    if num_cols >= 2 and num_rows > 1:
+        available_charts.append("Treemap")
+
+    # Table: always available as fallback
+    available_charts.append("Table")
+
+    return available_charts
+
+
 def create_chart(df: pd.DataFrame, unique_id: str = ""):
     """Create interactive chart from dataframe."""
     st.subheader("📊 Visualize Data")
 
-    # Chart type selection
-    chart_type = st.selectbox(
-        "Chart Type",
-        ["Bar Chart", "Stacked Bar", "Line Chart", "Scatter Plot", "Pie Chart", "Treemap", "Table"],
-        key=f"chart_type_{unique_id}"
-    )
-
     numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
     all_cols = df.columns.tolist()
+
+    # Get available chart types based on data structure
+    available_charts = get_available_chart_types(df)
+
+    # Show info about why certain charts might not be available
+    if len(available_charts) == 1 and available_charts[0] == "Table":
+        if len(df) == 0:
+            st.info("ℹ️ No data to visualize. Showing table only.")
+        elif len(df) == 1:
+            st.info("ℹ️ Single row results are best viewed as a table. Charts require multiple rows for meaningful visualization.")
+        elif len(numeric_cols) == 0:
+            st.info("ℹ️ No numeric columns found. Charts require at least one numeric column. Showing table only.")
+
+    # Chart type selection - only show available options
+    chart_type = st.selectbox(
+        "Chart Type",
+        available_charts,
+        key=f"chart_type_{unique_id}"
+    )
 
     if chart_type == "Bar Chart" and len(numeric_cols) >= 1:
         x_col = st.selectbox("X-axis", all_cols, key=f"bar_x_{unique_id}")
