@@ -656,7 +656,7 @@ BEGIN
             'Region ' || ((cust_id % 5) + 1),
             order_dt + '5 days'::INTERVAL,
             CASE
-                WHEN random() < 0.85 THEN order_dt + (4 + random() * 3)::INTEGER || ' days'
+                WHEN random() < 0.85 THEN order_dt + (((4 + random() * 3)::INTEGER)::TEXT || ' days')::INTERVAL
                 ELSE NULL
             END
         );
