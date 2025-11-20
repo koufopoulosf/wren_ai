@@ -13,10 +13,6 @@ numpy
 
 # Visualization (charts)
 plotly
-kaleido
 
 # Database connector (PostgreSQL async)
 asyncpg
-
-# SQL parsing (for query validation)
-sqlparse
