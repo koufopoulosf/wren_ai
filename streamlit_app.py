@@ -326,12 +326,12 @@ class WrenAssistant:
 
 User question: "{question}"
 
-A DATA QUERY asks about information stored in database tables (customers, orders, products, revenue, etc.)
+A DATA QUERY asks about information stored in database tables (tokens, prices, volumes, holdings, transactions, etc.)
 Examples of DATA QUERIES:
-- "What was total revenue last month?"
-- "Show me top customers"
-- "How many orders do we have?"
-- "What's the average order value?"
+- "What was Bitcoin's price last month?"
+- "Show me top tokens by trading volume"
+- "How many active users do we have?"
+- "What's the average daily trading volume?"
 
 A META/SYSTEM QUESTION asks about the AI system itself, its capabilities, or is unrelated to the database.
 Examples of META/SYSTEM QUESTIONS:
@@ -363,16 +363,17 @@ Respond with JSON only:
             # If it's not a data query, generate a helpful response
             if not classification.get('is_data_query', True):
                 # Generate natural language response
-                response_prompt = f"""You are a helpful AI data assistant for an e-commerce analytics database.
+                response_prompt = f"""You are a helpful AI data assistant for a cryptocurrency trading analytics database.
 
 The user asked: "{question}"
 
 This is a question about the system/capabilities, not a data query. Provide a brief, friendly response.
 
 Available data:
-- E-commerce database with customers, orders, products, categories
-- Sample data from January-April 2024
-- Can answer questions about revenue, customers, orders, products, etc.
+- Cryptocurrency database with tokens, prices, volumes, holdings, transactions
+- 2 years of historical OHLCV data (Nov 2023 - Nov 2025)
+- 20 major cryptocurrencies (BTC, ETH, USDT, BNB, SOL, ADA, etc.)
+- Can answer questions about prices, trading volumes, user holdings, revenue, staking, etc.
 
 Keep your response concise (2-3 sentences) and helpful."""
 
@@ -699,12 +700,12 @@ def main():
         # Example queries in a grid
         col1, col2 = st.columns(2)
         examples = [
-            "What was total revenue last month?",
-            "Show top 10 customers by orders",
-            "How many active customers do we have?",
-            "What's our average order value?",
-            "Show revenue trends by month",
-            "Which products sell the best?"
+            "What was Bitcoin's highest price in 2024?",
+            "Show top 10 tokens by trading volume",
+            "What's Ethereum's price trend over the last 6 months?",
+            "How much revenue was generated from staking last month?",
+            "Which users have the largest crypto holdings?",
+            "Show me total trading volume by month for the last year"
         ]
 
         for idx, example in enumerate(examples):
