@@ -12,13 +12,14 @@ A modern AI-powered data assistant that uses Claude's advanced language understa
 ## ✨ Features
 
 - 🎯 **Natural Language to SQL** - Ask questions in plain English, get accurate SQL queries
-- 🧠 **Full Schema Context** - Claude receives complete DDL for optimal SQL generation
+- 🧠 **Full Schema Context with Comments** - Claude receives complete DDL including column comments for better understanding
+- 🗄️ **Multi-Database Support** - Works with PostgreSQL and AWS Redshift
 - 🔒 **Security First** - Prepared statement protection, input validation, read-only queries
 - 📊 **Rich Visualizations** - Interactive charts with Plotly (bar, line, scatter, pie, treemap)
 - 💾 **Multi-Format Export** - Download results as CSV, JSON, or chart images
 - 🎨 **Clean UI** - Claude-inspired modern interface with conversational responses
 - 🤖 **Context-Aware** - Remembers conversation history for natural follow-up questions
-- ⚡ **Fast & Simple** - Lightweight architecture with just 2 Docker services
+- ⚡ **Fast & Simple** - Lightweight architecture with schema caching (5 min TTL)
 
 ---
 
@@ -182,13 +183,28 @@ All configuration is in `.env` file (copy from `.env.example`):
 # REQUIRED
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 
-# Optional - use defaults for Docker Compose
-ANTHROPIC_MODEL=claude-sonnet-4-20250514
+# Database Configuration (PostgreSQL)
+DB_TYPE=postgres  # or 'redshift' for AWS Redshift
 DB_HOST=postgres
 DB_PORT=5432
 DB_DATABASE=cryptoDB
 DB_USER=wren_user
 DB_PASSWORD=wren_password
+DB_SSL=false  # Set to 'true' for Redshift or remote databases
+
+# Optional - Claude model
+ANTHROPIC_MODEL=claude-sonnet-4-20250514
+```
+
+**For AWS Redshift:**
+```bash
+DB_TYPE=redshift
+DB_HOST=your-cluster.region.redshift.amazonaws.com
+DB_PORT=5439
+DB_DATABASE=your_database
+DB_USER=your_user
+DB_PASSWORD=your_password
+DB_SSL=true
 ```
 
 ### Service Ports
@@ -223,13 +239,26 @@ DB_PASSWORD=wren_password
 
 ### Connect Your Own Database
 
+**Works with PostgreSQL and Redshift!**
+
 1. **Update `.env` file:**
 ```bash
+# PostgreSQL
+DB_TYPE=postgres
 DB_HOST=your-postgres-host
 DB_PORT=5432
 DB_DATABASE=your_database
 DB_USER=your_user
 DB_PASSWORD=your_password
+
+# OR Redshift
+DB_TYPE=redshift
+DB_HOST=your-cluster.region.redshift.amazonaws.com
+DB_PORT=5439
+DB_DATABASE=your_database
+DB_USER=your_user
+DB_PASSWORD=your_password
+DB_SSL=true
 ```
 
 2. **Restart services:**
@@ -238,6 +267,19 @@ docker-compose restart streamlit-app
 ```
 
 3. **Start querying!** The system automatically fetches your schema on first query.
+
+### Adding Column Comments for Better Accuracy
+
+Column comments help Claude understand your data better:
+
+```sql
+-- PostgreSQL / Redshift
+COMMENT ON COLUMN users.email IS 'User email address for login and notifications';
+COMMENT ON COLUMN orders.total_amount IS 'Total order amount in USD including tax';
+COMMENT ON COLUMN transactions.created_at IS 'Timestamp when transaction was processed';
+```
+
+These comments are included in the DDL sent to Claude, resulting in more accurate SQL generation!
 
 ### Add Custom Data
 
@@ -304,7 +346,7 @@ docker-compose up -d
 |-----------|-----------|---------|
 | **UI** | Streamlit | Web interface |
 | **LLM** | Claude Sonnet 4.5 | SQL generation & explanations |
-| **Database** | PostgreSQL 15 | Data storage |
+| **Database** | PostgreSQL 15 / Redshift | Data storage (your choice!) |
 | **Orchestration** | Docker Compose | Multi-service deployment |
 | **Language** | Python 3.11+ | Application code |
 | **Async** | asyncio + asyncpg | Database operations |

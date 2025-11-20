@@ -262,7 +262,8 @@ class WrenAssistant:
         self.sql_generator = SQLGenerator(
             anthropic_client=self.config.anthropic_client,
             db_config=db_config,
-            model=self.config.ANTHROPIC_MODEL
+            model=self.config.ANTHROPIC_MODEL,
+            db_type=self.config.DB_TYPE
         )
 
         # Load basic schema info for display

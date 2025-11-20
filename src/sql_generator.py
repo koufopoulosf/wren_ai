@@ -6,6 +6,8 @@ Clean architecture:
 - No external Wren AI Service dependency
 - No vector search, embeddings, or semantic matching
 - Claude's excellent semantic understanding handles schema reasoning
+- Supports both PostgreSQL and Redshift
+- Includes column comments for better context
 """
 
 import logging
@@ -25,7 +27,8 @@ class SQLGenerator:
         self,
         anthropic_client: Anthropic,
         db_config: Dict[str, str],
-        model: str = "claude-sonnet-4-20250514"
+        model: str = "claude-sonnet-4-20250514",
+        db_type: str = "postgres"
     ):
         """
         Initialize SQL generator.
@@ -34,10 +37,12 @@ class SQLGenerator:
             anthropic_client: Anthropic API client
             db_config: Database connection config
             model: Claude model to use
+            db_type: Database type ('postgres' or 'redshift')
         """
         self.anthropic = anthropic_client
         self.db_config = db_config
         self.model = model
+        self.db_type = db_type.lower()
         self._db_conn = None
 
         # Schema caching (5 minute TTL)
@@ -45,7 +50,7 @@ class SQLGenerator:
         self._schema_cache_time = 0
         self._schema_cache_ttl = 300  # 5 minutes in seconds
 
-        logger.info(f"SQLGenerator initialized with model: {model}")
+        logger.info(f"SQLGenerator initialized with model: {model}, db_type: {self.db_type}")
 
     async def connect_db(self):
         """Connect to database for SQL execution."""
@@ -70,12 +75,13 @@ class SQLGenerator:
     async def get_schema_ddl(self, force_refresh: bool = False) -> str:
         """
         Get schema as DDL (CREATE TABLE statements) with caching.
+        Includes column comments for better semantic understanding.
 
         Args:
             force_refresh: If True, bypass cache and fetch fresh schema
 
         Returns:
-            DDL string for all tables
+            DDL string for all tables with column comments
         """
         # Check cache first (unless force refresh)
         current_time = time.time()
@@ -104,23 +110,32 @@ class SQLGenerator:
         for table_row in tables:
             table_name = table_row["table_name"]
 
-            # Get columns
+            # Get columns with comments
             columns_query = """
             SELECT
-                column_name,
-                data_type,
-                is_nullable,
-                column_default
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = $1
-            ORDER BY ordinal_position
+                c.column_name,
+                c.data_type,
+                c.is_nullable,
+                c.column_default,
+                pgd.description as column_comment
+            FROM information_schema.columns c
+            LEFT JOIN pg_catalog.pg_statio_all_tables st
+                ON c.table_schema = st.schemaname
+                AND c.table_name = st.relname
+            LEFT JOIN pg_catalog.pg_description pgd
+                ON pgd.objoid = st.relid
+                AND pgd.objsubid = c.ordinal_position
+            WHERE c.table_schema = 'public'
+              AND c.table_name = $1
+            ORDER BY c.ordinal_position
             """
 
             columns = await self._db_conn.fetch(columns_query, table_name)
 
-            # Build CREATE TABLE
+            # Build CREATE TABLE with column definitions
             col_defs = []
+            comments = []
+
             for col in columns:
                 nullable = "" if col["is_nullable"] == "YES" else " NOT NULL"
                 default = f" DEFAULT {col['column_default']}" if col["column_default"] else ""
@@ -128,7 +143,18 @@ class SQLGenerator:
                     f"  {col['column_name']} {col['data_type']}{nullable}{default}"
                 )
 
+                # Add column comment if it exists
+                if col.get("column_comment"):
+                    comment_sql = f"COMMENT ON COLUMN {table_name}.{col['column_name']} IS '{col['column_comment']}';"
+                    comments.append(comment_sql)
+
+            # Build complete DDL for table
             ddl = f"CREATE TABLE {table_name} (\n" + ",\n".join(col_defs) + "\n);"
+
+            # Add comments after table definition
+            if comments:
+                ddl += "\n" + "\n".join(comments)
+
             ddl_parts.append(ddl)
 
         schema_ddl = "\n\n".join(ddl_parts)
@@ -136,7 +162,7 @@ class SQLGenerator:
         # Update cache
         self._schema_cache = schema_ddl
         self._schema_cache_time = current_time
-        logger.info(f"Schema cached (TTL: {self._schema_cache_ttl}s)")
+        logger.info(f"Schema cached with comments (TTL: {self._schema_cache_ttl}s)")
 
         return schema_ddl
 

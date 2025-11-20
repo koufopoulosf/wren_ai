@@ -14,5 +14,6 @@ numpy
 # Visualization (charts)
 plotly
 
-# Database connector (PostgreSQL async)
-asyncpg
+# Database connectors
+asyncpg  # PostgreSQL (async)
+redshift-connector  # AWS Redshift
