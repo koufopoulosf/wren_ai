@@ -32,6 +32,13 @@ from config import Config
 from sql_generator import SQLGenerator
 from result_validator import ResultValidator
 from query_explainer import QueryExplainer
+from question_classifier import QuestionClassifier
+from response_generator import ResponseGenerator
+from pipeline_orchestrator import PipelineOrchestrator
+from context_manager import ContextManager
+from response_validator import ResponseValidator
+from insight_generator import InsightGenerator
+from confidence_calculator import ConfidenceCalculator
 
 # Page config
 st.set_page_config(
@@ -231,15 +238,32 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-class WrenAssistant:
-    """Main application class."""
+class DataAssistant:
+    """
+    Main application class - Simplified UI coordinator.
+
+    This class is now focused solely on UI coordination and initialization.
+    The heavy lifting is done by specialized components:
+    - QuestionClassifier: Classifies question intent
+    - ResponseGenerator: Generates conversational responses
+    - PipelineOrchestrator: Coordinates the workflow
+
+    Note: Renamed from WrenAssistant to avoid confusion - we don't use Wren AI.
+    """
 
     def __init__(self):
-        """Initialize AI assistant."""
+        """Initialize data assistant."""
         self.config = Config()
         self.sql_generator = None
         self.result_validator = None
         self.explainer = None
+        self.classifier = None
+        self.response_generator = None
+        self.context_manager = None
+        self.response_validator = None
+        self.insight_generator = None
+        self.confidence_calculator = None
+        self.orchestrator = None
         self.initialized = False
         self.schema_info = {"tables": [], "relationships": []}
 
@@ -269,14 +293,9 @@ class WrenAssistant:
         # Load basic schema info for display
         await self.sql_generator.connect_db()
         try:
-            # Get table names and basic structure
-            tables_result = await self.sql_generator._db_conn.fetch("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                ORDER BY table_name
-            """)
-            self.schema_info["tables"] = [{"name": row["table_name"]} for row in tables_result]
+            # Get table names using public method (not accessing private attributes)
+            table_names = await self.sql_generator.get_table_names()
+            self.schema_info["tables"] = [{"name": name} for name in table_names]
             logger.info(f"✅ Loaded schema: {len(self.schema_info['tables'])} tables")
         except Exception as e:
             logger.warning(f"Could not load schema info: {e}")
@@ -293,194 +312,68 @@ class WrenAssistant:
             model=self.config.ANTHROPIC_MODEL
         )
 
+        # Initialize new specialized components
+        self.classifier = QuestionClassifier(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        self.response_generator = ResponseGenerator(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        # Initialize context manager for strong conversation memory
+        self.context_manager = ContextManager(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        # Initialize Phase 2 components - Response validation and insights
+        self.response_validator = ResponseValidator(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        self.insight_generator = InsightGenerator(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        self.confidence_calculator = ConfidenceCalculator()
+
+        # Initialize orchestrator with all components including Phase 2 improvements
+        self.orchestrator = PipelineOrchestrator(
+            classifier=self.classifier,
+            response_generator=self.response_generator,
+            sql_generator=self.sql_generator,
+            result_validator=self.result_validator,
+            context_manager=self.context_manager,
+            response_validator=self.response_validator,
+            insight_generator=self.insight_generator,
+            confidence_calculator=self.confidence_calculator
+        )
+
         self.initialized = True
+        logger.info("✅ DataAssistant fully initialized with Phase 2 components (validation, insights, enhanced confidence)")
 
-    async def classify_question(self, question: str) -> Dict[str, Any]:
-        """
-        Classify whether the question is about the data or about the system.
-
-        Returns:
-            {
-                'is_data_query': bool,
-                'response': str (only if not a data query)
-            }
-        """
-        try:
-            classification_prompt = f"""Analyze this user question and determine if it's asking about data in a database or if it's a meta/system question.
-
-User question: "{question}"
-
-A DATA QUERY asks about information stored in database tables (tokens, prices, volumes, holdings, transactions, etc.)
-Examples of DATA QUERIES:
-- "What was Bitcoin's price last month?"
-- "Show me top tokens by trading volume"
-- "How many active users do we have?"
-- "What's the average daily trading volume?"
-
-A META/SYSTEM QUESTION asks about the AI system itself, its capabilities, or is unrelated to the database.
-Examples of META/SYSTEM QUESTIONS:
-- "Does the AI have access to data?"
-- "What can you do?"
-- "How does this work?"
-- "What tables are available?"
-- "Can you help me?"
-- "What's the weather?"
-
-Respond with JSON only:
-{{
-    "is_data_query": true/false,
-    "explanation": "brief reason"
-}}"""
-
-            message = self.config.anthropic_client.messages.create(
-                model=self.config.ANTHROPIC_MODEL,
-                max_tokens=200,
-                messages=[{"role": "user", "content": classification_prompt}]
-            )
-
-            response_text = message.content[0].text.strip()
-
-            # Parse JSON response
-            import json
-            classification = json.loads(response_text)
-
-            # If it's not a data query, generate a helpful response
-            if not classification.get('is_data_query', True):
-                # Generate natural language response
-                response_prompt = f"""You are a helpful AI data assistant for a cryptocurrency trading analytics database.
-
-The user asked: "{question}"
-
-This is a question about the system/capabilities, not a data query. Provide a brief, friendly response.
-
-Available data:
-- Cryptocurrency database with tokens, prices, volumes, holdings, transactions
-- 2 years of historical OHLCV data (Nov 2023 - Nov 2025)
-- 20 major cryptocurrencies (BTC, ETH, USDT, BNB, SOL, ADA, etc.)
-- Can answer questions about prices, trading volumes, user holdings, revenue, staking, etc.
-
-Keep your response concise (2-3 sentences) and helpful."""
-
-                response_message = self.config.anthropic_client.messages.create(
-                    model=self.config.ANTHROPIC_MODEL,
-                    max_tokens=300,
-                    messages=[{"role": "user", "content": response_prompt}]
-                )
-
-                return {
-                    'is_data_query': False,
-                    'response': response_message.content[0].text.strip()
-                }
-
-            return {'is_data_query': True}
-
-        except Exception as e:
-            logger.warning(f"Question classification failed: {e}, treating as data query")
-            return {'is_data_query': True}
-
-    async def generate_conversational_response(
+    async def process_question(
         self,
         question: str,
-        sql: str,
-        results: List[Dict],
+        session_id: str = "default",
         conversation_history: list = None
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
-        Generate a conversational response for query results, especially for empty results.
+        Process user question through the pipeline orchestrator with context management.
 
-        Args:
-            question: User's question
-            sql: Generated SQL query
-            results: Query results (may be empty)
-            conversation_history: Previous conversation messages
-
-        Returns:
-            Conversational response string
-        """
-        try:
-            # Build conversation context
-            conversation_context = ""
-            if conversation_history and len(conversation_history) > 0:
-                recent_history = conversation_history[-3:]  # Last 3 messages for context
-                history_parts = []
-                for msg in recent_history:
-                    role = msg.get('role', 'user')
-                    content = msg.get('content', '')
-                    if len(content) > 200:
-                        content = content[:200] + "..."
-                    history_parts.append(f"{role.capitalize()}: {content}")
-
-                conversation_context = f"""
-
-## Recent Conversation History
-{chr(10).join(history_parts)}
-"""
-
-            # Check if results are empty
-            is_empty = not results or len(results) == 0
-
-            # Build prompt
-            prompt = f"""You are a helpful AI data assistant for a cryptocurrency trading analytics database. Generate a conversational response for the user.
-
-## User's Question
-{question}
-
-## SQL Query Generated
-```sql
-{sql}
-```
-
-## Query Results
-{"No results returned (empty result set)" if is_empty else f"{len(results)} rows returned"}
-{conversation_context}
-
-## Your Task
-{"The query returned NO results. Generate a helpful, conversational response that:" if is_empty else "The query returned results. Generate a brief, natural explanation that:"}
-
-1. **Explains the situation** in natural language (why no data was found OR what the results show)
-2. **Suggests alternatives** if no data found:
-   - Check if the user might have meant something else
-   - Suggest related queries they could try
-   - Ask clarifying questions if the request was ambiguous
-3. **Be conversational** - sound like a helpful colleague, not a robot
-4. **Keep it concise** - 2-4 sentences maximum
-
-Examples of GOOD responses:
-- "I don't have any data about token hunts in the database. Did you perhaps mean 'token holdings' or 'token transactions'? I can show you which tokens users hold most frequently if that helps."
-- "I couldn't find any records matching that criteria. This could mean either no data exists for that time period, or the column name might be different. Could you clarify what you're looking for?"
-- "The query found 25 tokens and their holding counts. Bitcoin is the most held token with 1,234 holdings, followed by Ethereum with 987 holdings."
-
-Examples of BAD responses:
-- "The query executed successfully but returned no rows." (too technical)
-- "No data found." (not helpful)
-- "Here are the results:" (not conversational)
-
-Generate your response:"""
-
-            message = self.config.anthropic_client.messages.create(
-                model=self.config.ANTHROPIC_MODEL,
-                max_tokens=300,
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            response_text = message.content[0].text.strip()
-            return response_text
-
-        except Exception as e:
-            logger.error(f"Error generating conversational response: {e}")
-            # Fallback to simple response
-            if not results or len(results) == 0:
-                return "I couldn't find any data matching your question. Could you rephrase or provide more details about what you're looking for?"
-            else:
-                return f"Found {len(results)} results."
-
-    async def process_question(self, question: str, conversation_history: list = None) -> Dict[str, Any]:
-        """
-        Process user question and return results with conversation context.
+        This method now delegates to the PipelineOrchestrator for all
+        question processing logic, keeping DataAssistant focused on
+        UI coordination.
 
         Args:
             question: User's natural language question
-            conversation_history: List of previous messages for context (optional)
+            session_id: Session identifier for context management
+            conversation_history: List of previous messages for context (deprecated - use context manager)
 
         Returns:
             {
@@ -490,71 +383,16 @@ Generate your response:"""
                 'explanation': str,
                 'warnings': List[str],
                 'suggestions': List[str],
-                'confidence': float
+                'confidence': float,
+                'resolved_question': str  # Question after reference resolution
             }
         """
-        response = {
-            'success': False,
-            'sql': '',
-            'results': [],
-            'explanation': '',
-            'warnings': [],
-            'suggestions': [],
-            'confidence': 0.0
-        }
-
-        try:
-            # First, classify the question
-            classification = await self.classify_question(question)
-
-            # If it's not a data query, return the natural language response
-            if not classification.get('is_data_query', True):
-                response['success'] = True
-                response['explanation'] = classification.get('response', '')
-                return response
-
-            # Generate SQL using vector search + Claude with conversation context
-            result = await self.sql_generator.ask(question, conversation_history=conversation_history)
-
-            sql = result.get('sql', '')
-            results = result.get('results', [])
-            context_used = result.get('context_used', [])
-
-            response['sql'] = sql
-            response['results'] = results
-            response['confidence'] = 0.9 if context_used else 0.5  # High confidence if context found
-            response['explanation'] = result.get('explanation', '')
-
-            if not sql:
-                response['warnings'].append("❌ Could not generate SQL for this question.")
-                return response
-
-            # Validate results
-            has_warnings, warning_msg = self.result_validator.validate_results(results, sql)
-            if has_warnings:
-                response['warnings'].append(warning_msg)
-
-            # Always generate conversational response (handles both empty and non-empty results)
-            explanation = await self.generate_conversational_response(
-                question=question,
-                sql=sql,
-                results=results,
-                conversation_history=conversation_history
-            )
-            response['explanation'] = explanation
-
-            # If results are empty, add suggestions
-            if not results or len(results) == 0:
-                response['suggestions'].append("Try rephrasing your question")
-                response['suggestions'].append("Check if the column or table name is correct")
-                response['suggestions'].append("Ask about what data is available")
-
-            response['success'] = True
-
-        except Exception as e:
-            response['warnings'].append(f"❌ Error: {str(e)}")
-
-        return response
+        # Delegate to orchestrator with session_id for context management
+        return await self.orchestrator.process(
+            question=question,
+            session_id=session_id,
+            conversation_history=conversation_history
+        )
 
 
 def init_session_state():
@@ -563,7 +401,7 @@ def init_session_state():
         st.session_state.messages = []
 
     if 'assistant' not in st.session_state:
-        st.session_state.assistant = WrenAssistant()
+        st.session_state.assistant = DataAssistant()
 
     if 'initialized' not in st.session_state:
         st.session_state.initialized = False
@@ -621,6 +459,109 @@ def display_message(role: str, content: str, metadata: Dict = None):
                 # Show chart if requested
                 if st.session_state.get(f'show_chart_{metadata.get("timestamp", "")}'):
                     create_chart(df, unique_id=metadata.get("timestamp", ""))
+
+            # Display Phase 2 features: Insights
+            insights = metadata.get('insights')
+            if insights and isinstance(insights, dict):
+                # Check if there are any insights to show
+                has_content = any([
+                    insights.get('top_findings'),
+                    insights.get('trends'),
+                    insights.get('outliers'),
+                    insights.get('recommendations')
+                ])
+
+                if has_content:
+                    with st.expander("💎 Key Insights & Findings", expanded=True):
+                        # Show summary if available
+                        if insights.get('summary'):
+                            st.markdown(f"**Summary:** {insights['summary']}")
+                            st.markdown("---")
+
+                        # Top findings
+                        if insights.get('top_findings'):
+                            st.markdown("**📊 Top Findings:**")
+                            for finding in insights['top_findings']:
+                                st.markdown(f"- {finding}")
+                            st.markdown("")
+
+                        # Trends
+                        if insights.get('trends'):
+                            st.markdown("**📈 Trends & Patterns:**")
+                            for trend in insights['trends']:
+                                st.markdown(f"- {trend}")
+                            st.markdown("")
+
+                        # Outliers
+                        if insights.get('outliers'):
+                            st.markdown("**⚠️ Outliers & Anomalies:**")
+                            for outlier in insights['outliers']:
+                                st.markdown(f"- {outlier}")
+                            st.markdown("")
+
+                        # Recommendations
+                        if insights.get('recommendations'):
+                            st.markdown("**💡 Recommendations:**")
+                            for rec in insights['recommendations']:
+                                st.markdown(f"- {rec}")
+
+            # Display Phase 2 features: Validation & Confidence
+            validation = metadata.get('validation')
+            confidence_details = metadata.get('confidence_details')
+
+            if validation or confidence_details:
+                with st.expander("🎯 Confidence & Validation Details", expanded=False):
+                    if confidence_details and isinstance(confidence_details, dict):
+                        # Show confidence level with color coding
+                        level = confidence_details.get('level', 'medium')
+                        overall = confidence_details.get('overall', 0.0)
+                        message = confidence_details.get('message', '')
+
+                        if level == 'high':
+                            st.success(f"{message} (Score: {overall:.2f})")
+                        elif level == 'medium':
+                            st.info(f"{message} (Score: {overall:.2f})")
+                        else:
+                            st.warning(f"{message} (Score: {overall:.2f})")
+
+                        # Show confidence breakdown
+                        st.markdown("**Confidence Breakdown:**")
+                        cols = st.columns(4)
+                        with cols[0]:
+                            st.metric("Schema Match", f"{confidence_details.get('schema_match', 0):.2f}")
+                        with cols[1]:
+                            st.metric("Result Quality", f"{confidence_details.get('result_quality', 0):.2f}")
+                        with cols[2]:
+                            st.metric("Validation", f"{confidence_details.get('validation_score', 0):.2f}")
+                        with cols[3]:
+                            st.metric("Context Usage", f"{confidence_details.get('context_usage', 0):.2f}")
+
+                    if validation and isinstance(validation, dict):
+                        st.markdown("---")
+                        st.markdown("**Validation Details:**")
+
+                        # Show validation status
+                        is_valid = validation.get('is_valid', True)
+                        val_confidence = validation.get('confidence', 0.0)
+
+                        if is_valid:
+                            st.markdown(f"✅ Response validated (Confidence: {val_confidence:.2f})")
+                        else:
+                            st.markdown(f"⚠️ Response has concerns (Confidence: {val_confidence:.2f})")
+
+                        # Show issues if present
+                        issues = validation.get('issues', [])
+                        if issues:
+                            st.markdown("**Issues Found:**")
+                            for issue in issues:
+                                st.markdown(f"- {issue}")
+
+                        # Show validation suggestions
+                        val_suggestions = validation.get('suggestions', [])
+                        if val_suggestions:
+                            st.markdown("**Validation Suggestions:**")
+                            for suggestion in val_suggestions:
+                                st.markdown(f"- {suggestion}")
 
             # Only show warnings/suggestions if they exist and aren't already in content
             warnings = metadata.get('warnings')
@@ -902,11 +843,21 @@ def main():
         with thinking_placeholder:
             st.info("🤔 Thinking...")
 
+        # Get or create session_id for context management
+        if 'session_id' not in st.session_state:
+            import hashlib
+            import time
+            st.session_state.session_id = hashlib.md5(f"{time.time()}".encode()).hexdigest()[:16]
+
         # Get conversation history (exclude the current question, which was just added)
         conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
 
-        # Process question with conversation context
-        response = run_async(st.session_state.assistant.process_question(question, conversation_history=conversation_history))
+        # Process question with conversation context and session_id
+        response = run_async(st.session_state.assistant.process_question(
+            question=question,
+            session_id=st.session_state.session_id,
+            conversation_history=conversation_history
+        ))
 
         # Clear thinking message
         thinking_placeholder.empty()
