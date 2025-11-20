@@ -377,6 +377,102 @@ Keep your response concise (2-3 sentences) and helpful."""
             logger.warning(f"Question classification failed: {e}, treating as data query")
             return {'is_data_query': True}
 
+    async def generate_conversational_response(
+        self,
+        question: str,
+        sql: str,
+        results: List[Dict],
+        conversation_history: list = None
+    ) -> str:
+        """
+        Generate a conversational response for query results, especially for empty results.
+
+        Args:
+            question: User's question
+            sql: Generated SQL query
+            results: Query results (may be empty)
+            conversation_history: Previous conversation messages
+
+        Returns:
+            Conversational response string
+        """
+        try:
+            # Build conversation context
+            conversation_context = ""
+            if conversation_history and len(conversation_history) > 0:
+                recent_history = conversation_history[-3:]  # Last 3 messages for context
+                history_parts = []
+                for msg in recent_history:
+                    role = msg.get('role', 'user')
+                    content = msg.get('content', '')
+                    if len(content) > 200:
+                        content = content[:200] + "..."
+                    history_parts.append(f"{role.capitalize()}: {content}")
+
+                conversation_context = f"""
+
+## Recent Conversation History
+{chr(10).join(history_parts)}
+"""
+
+            # Check if results are empty
+            is_empty = not results or len(results) == 0
+
+            # Build prompt
+            prompt = f"""You are a helpful AI data assistant for a cryptocurrency trading analytics database. Generate a conversational response for the user.
+
+## User's Question
+{question}
+
+## SQL Query Generated
+```sql
+{sql}
+```
+
+## Query Results
+{"No results returned (empty result set)" if is_empty else f"{len(results)} rows returned"}
+{conversation_context}
+
+## Your Task
+{"The query returned NO results. Generate a helpful, conversational response that:" if is_empty else "The query returned results. Generate a brief, natural explanation that:"}
+
+1. **Explains the situation** in natural language (why no data was found OR what the results show)
+2. **Suggests alternatives** if no data found:
+   - Check if the user might have meant something else
+   - Suggest related queries they could try
+   - Ask clarifying questions if the request was ambiguous
+3. **Be conversational** - sound like a helpful colleague, not a robot
+4. **Keep it concise** - 2-4 sentences maximum
+
+Examples of GOOD responses:
+- "I don't have any data about token hunts in the database. Did you perhaps mean 'token holdings' or 'token transactions'? I can show you which tokens users hold most frequently if that helps."
+- "I couldn't find any records matching that criteria. This could mean either no data exists for that time period, or the column name might be different. Could you clarify what you're looking for?"
+- "The query found 25 tokens and their holding counts. Bitcoin is the most held token with 1,234 holdings, followed by Ethereum with 987 holdings."
+
+Examples of BAD responses:
+- "The query executed successfully but returned no rows." (too technical)
+- "No data found." (not helpful)
+- "Here are the results:" (not conversational)
+
+Generate your response:"""
+
+            message = self.config.anthropic_client.messages.create(
+                model=self.config.ANTHROPIC_MODEL,
+                max_tokens=300,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = message.content[0].text.strip()
+            return response_text
+
+        except Exception as e:
+            logger.error(f"Error generating conversational response: {e}")
+            # Fallback to simple response
+            if not results or len(results) == 0:
+                return "I couldn't find any data matching your question. Could you rephrase or provide more details about what you're looking for?"
+            else:
+                return f"Found {len(results)} results."
+
     async def process_question(self, question: str, conversation_history: list = None) -> Dict[str, Any]:
         """
         Process user question and return results with conversation context.
@@ -437,10 +533,20 @@ Keep your response concise (2-3 sentences) and helpful."""
             if has_warnings:
                 response['warnings'].append(warning_msg)
 
-            # Generate detailed explanation if needed
-            if results:
-                explanation = await self.explainer.explain_query(question, sql, results[:5])
-                response['explanation'] = explanation
+            # Always generate conversational response (handles both empty and non-empty results)
+            explanation = await self.generate_conversational_response(
+                question=question,
+                sql=sql,
+                results=results,
+                conversation_history=conversation_history
+            )
+            response['explanation'] = explanation
+
+            # If results are empty, add suggestions
+            if not results or len(results) == 0:
+                response['suggestions'].append("Try rephrasing your question")
+                response['suggestions'].append("Check if the column or table name is correct")
+                response['suggestions'].append("Ask about what data is available")
 
             response['success'] = True
 
