@@ -26,9 +26,5 @@ redshift-connector  # For Redshift
 psycopg2-binary  # For Postgres (sync)
 asyncpg  # For Postgres (async - for schema introspection)
 
-# Vector database and embeddings
-qdrant-client  # Qdrant vector database client
-httpx  # Already included above for Ollama API calls
-
 # SQL parsing (for schema validation)
 sqlparse

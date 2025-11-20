@@ -22,42 +22,6 @@ services:
     networks:
       - wren-network
 
-  # Qdrant Vector Database (for semantic search)
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: wren-qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    restart: unless-stopped
-    networks:
-      - wren-network
-
-  # Ollama (local embeddings - replaces OpenAI)
-  ollama:
-    image: ollama/ollama:latest
-    container_name: wren-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-      - ./scripts/ollama-entrypoint.sh:/ollama-entrypoint.sh
-    restart: unless-stopped
-    networks:
-      - wren-network
-    environment:
-      - OLLAMA_MODELS=/root/.ollama/models
-      - OLLAMA_HOST=0.0.0.0:11434
-    entrypoint: ["/bin/sh", "/ollama-entrypoint.sh"]
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
-
   # Streamlit Data Assistant
   streamlit-app:
     build:
@@ -75,11 +39,6 @@ services:
       DB_USER: wren_user
       DB_PASSWORD: wren_password
       DB_SSL: "false"
-      # Vector Search Configuration
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
-      OLLAMA_URL: http://ollama:11434
-      EMBEDDING_MODEL: nomic-embed-text
       # Anthropic API (for SQL generation)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_MODEL: claude-sonnet-4-20250514
@@ -91,10 +50,6 @@ services:
       ENABLE_CHARTS: "true"
     depends_on:
       postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
-      ollama:
         condition: service_healthy
     volumes:
       - ./src:/app/src
@@ -111,8 +66,4 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
-  qdrant_data:
-    driver: local
-  ollama_data:
     driver: local

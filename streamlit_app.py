@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from config import Config
-from vector_search import VectorSearch
 from sql_generator import SQLGenerator
-from schema_embedder import SchemaEmbedder
 from result_validator import ResultValidator
 from query_explainer import QueryExplainer
 
@@ -239,12 +237,10 @@ class WrenAssistant:
     def __init__(self):
         """Initialize AI assistant."""
         self.config = Config()
-        self.vector_search = None
         self.sql_generator = None
         self.result_validator = None
         self.explainer = None
         self.initialized = False
-        self.schema_embedded = False
         self.schema_info = {"tables": [], "relationships": []}
 
     async def initialize(self):
@@ -262,41 +258,28 @@ class WrenAssistant:
             "ssl": "require" if self.config.DB_SSL else "disable"
         }
 
-        # Initialize vector search
-        self.vector_search = VectorSearch(
-            qdrant_host=self.config.QDRANT_HOST,
-            qdrant_port=self.config.QDRANT_PORT,
-            ollama_url=self.config.OLLAMA_URL,
-            embedding_model=self.config.EMBEDDING_MODEL,
-            collection_name=self.config.VECTOR_COLLECTION
-        )
-
-        # Initialize SQL generator
+        # Initialize SQL generator (simplified - no vector search needed)
         self.sql_generator = SQLGenerator(
             anthropic_client=self.config.anthropic_client,
-            vector_search=self.vector_search,
             db_config=db_config,
             model=self.config.ANTHROPIC_MODEL
         )
 
-        # Check if schema is embedded, if not embed it
-        collection_info = self.vector_search.get_collection_info()
-        if collection_info.get('points_count', 0) == 0:
-            logger.info("Schema not embedded yet, embedding now...")
-            schema_embedder = SchemaEmbedder(db_config, self.vector_search)
-            await schema_embedder.refresh_schema_embeddings()
-            self.schema_embedded = True
-            logger.info("✅ Schema embedded successfully")
-        else:
-            logger.info(f"✅ Schema already embedded ({collection_info.get('points_count')} entities)")
-
-        # Load schema info for display
-        schema_embedder = SchemaEmbedder(db_config, self.vector_search)
-        await schema_embedder.connect()
+        # Load basic schema info for display
+        await self.sql_generator.connect_db()
         try:
-            self.schema_info = await schema_embedder.introspect_schema()
-        finally:
-            await schema_embedder.disconnect()
+            # Get table names and basic structure
+            tables_result = await self.sql_generator._db_conn.fetch("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """)
+            self.schema_info["tables"] = [{"name": row["table_name"]} for row in tables_result]
+            logger.info(f"✅ Loaded schema: {len(self.schema_info['tables'])} tables")
+        except Exception as e:
+            logger.warning(f"Could not load schema info: {e}")
+            self.schema_info["tables"] = []
 
         # Initialize validators
         self.result_validator = ResultValidator(
@@ -394,9 +377,109 @@ Keep your response concise (2-3 sentences) and helpful."""
             logger.warning(f"Question classification failed: {e}, treating as data query")
             return {'is_data_query': True}
 
-    async def process_question(self, question: str) -> Dict[str, Any]:
+    async def generate_conversational_response(
+        self,
+        question: str,
+        sql: str,
+        results: List[Dict],
+        conversation_history: list = None
+    ) -> str:
         """
-        Process user question and return results.
+        Generate a conversational response for query results, especially for empty results.
+
+        Args:
+            question: User's question
+            sql: Generated SQL query
+            results: Query results (may be empty)
+            conversation_history: Previous conversation messages
+
+        Returns:
+            Conversational response string
+        """
+        try:
+            # Build conversation context
+            conversation_context = ""
+            if conversation_history and len(conversation_history) > 0:
+                recent_history = conversation_history[-3:]  # Last 3 messages for context
+                history_parts = []
+                for msg in recent_history:
+                    role = msg.get('role', 'user')
+                    content = msg.get('content', '')
+                    if len(content) > 200:
+                        content = content[:200] + "..."
+                    history_parts.append(f"{role.capitalize()}: {content}")
+
+                conversation_context = f"""
+
+## Recent Conversation History
+{chr(10).join(history_parts)}
+"""
+
+            # Check if results are empty
+            is_empty = not results or len(results) == 0
+
+            # Build prompt
+            prompt = f"""You are a helpful AI data assistant for a cryptocurrency trading analytics database. Generate a conversational response for the user.
+
+## User's Question
+{question}
+
+## SQL Query Generated
+```sql
+{sql}
+```
+
+## Query Results
+{"No results returned (empty result set)" if is_empty else f"{len(results)} rows returned"}
+{conversation_context}
+
+## Your Task
+{"The query returned NO results. Generate a helpful, conversational response that:" if is_empty else "The query returned results. Generate a brief, natural explanation that:"}
+
+1. **Explains the situation** in natural language (why no data was found OR what the results show)
+2. **Suggests alternatives** if no data found:
+   - Check if the user might have meant something else
+   - Suggest related queries they could try
+   - Ask clarifying questions if the request was ambiguous
+3. **Be conversational** - sound like a helpful colleague, not a robot
+4. **Keep it concise** - 2-4 sentences maximum
+
+Examples of GOOD responses:
+- "I don't have any data about token hunts in the database. Did you perhaps mean 'token holdings' or 'token transactions'? I can show you which tokens users hold most frequently if that helps."
+- "I couldn't find any records matching that criteria. This could mean either no data exists for that time period, or the column name might be different. Could you clarify what you're looking for?"
+- "The query found 25 tokens and their holding counts. Bitcoin is the most held token with 1,234 holdings, followed by Ethereum with 987 holdings."
+
+Examples of BAD responses:
+- "The query executed successfully but returned no rows." (too technical)
+- "No data found." (not helpful)
+- "Here are the results:" (not conversational)
+
+Generate your response:"""
+
+            message = self.config.anthropic_client.messages.create(
+                model=self.config.ANTHROPIC_MODEL,
+                max_tokens=300,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = message.content[0].text.strip()
+            return response_text
+
+        except Exception as e:
+            logger.error(f"Error generating conversational response: {e}")
+            # Fallback to simple response
+            if not results or len(results) == 0:
+                return "I couldn't find any data matching your question. Could you rephrase or provide more details about what you're looking for?"
+            else:
+                return f"Found {len(results)} results."
+
+    async def process_question(self, question: str, conversation_history: list = None) -> Dict[str, Any]:
+        """
+        Process user question and return results with conversation context.
+
+        Args:
+            question: User's natural language question
+            conversation_history: List of previous messages for context (optional)
 
         Returns:
             {
@@ -429,8 +512,8 @@ Keep your response concise (2-3 sentences) and helpful."""
                 response['explanation'] = classification.get('response', '')
                 return response
 
-            # Generate SQL using vector search + Claude
-            result = await self.sql_generator.ask(question)
+            # Generate SQL using vector search + Claude with conversation context
+            result = await self.sql_generator.ask(question, conversation_history=conversation_history)
 
             sql = result.get('sql', '')
             results = result.get('results', [])
@@ -450,10 +533,20 @@ Keep your response concise (2-3 sentences) and helpful."""
             if has_warnings:
                 response['warnings'].append(warning_msg)
 
-            # Generate detailed explanation if needed
-            if results:
-                explanation = await self.explainer.explain_query(question, sql, results[:5])
-                response['explanation'] = explanation
+            # Always generate conversational response (handles both empty and non-empty results)
+            explanation = await self.generate_conversational_response(
+                question=question,
+                sql=sql,
+                results=results,
+                conversation_history=conversation_history
+            )
+            response['explanation'] = explanation
+
+            # If results are empty, add suggestions
+            if not results or len(results) == 0:
+                response['suggestions'].append("Try rephrasing your question")
+                response['suggestions'].append("Check if the column or table name is correct")
+                response['suggestions'].append("Ask about what data is available")
 
             response['success'] = True
 
@@ -539,19 +632,76 @@ def display_message(role: str, content: str, metadata: Dict = None):
                 st.info(f"💡 Suggestions: {', '.join(suggestions)}")
 
 
+def get_available_chart_types(df: pd.DataFrame) -> list:
+    """Determine which chart types are suitable for the given dataframe."""
+    available_charts = []
+
+    # Get column information
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    all_cols = df.columns.tolist()
+    num_rows = len(df)
+    num_numeric = len(numeric_cols)
+    num_cols = len(all_cols)
+
+    # Only show charts if we have actual data to visualize
+    if num_rows == 0:
+        return ["Table"]
+
+    # Bar Chart: needs at least 1 numeric column and more than 1 row for meaningful visualization
+    if num_numeric >= 1 and num_rows > 1:
+        available_charts.append("Bar Chart")
+
+    # Stacked Bar: needs at least 1 numeric column and more than 1 row
+    if num_numeric >= 1 and num_rows > 1:
+        available_charts.append("Stacked Bar")
+
+    # Line Chart: needs at least 1 numeric column and more than 1 row (useful for time series)
+    if num_numeric >= 1 and num_rows > 1:
+        available_charts.append("Line Chart")
+
+    # Scatter Plot: needs at least 2 numeric columns and more than 1 row
+    if num_numeric >= 2 and num_rows > 1:
+        available_charts.append("Scatter Plot")
+
+    # Pie Chart: needs at least 1 numeric column, at least 2 total columns, and multiple rows
+    if num_numeric >= 1 and num_cols >= 2 and num_rows > 1:
+        available_charts.append("Pie Chart")
+
+    # Treemap: needs at least 2 columns and more than 1 row
+    if num_cols >= 2 and num_rows > 1:
+        available_charts.append("Treemap")
+
+    # Table: always available as fallback
+    available_charts.append("Table")
+
+    return available_charts
+
+
 def create_chart(df: pd.DataFrame, unique_id: str = ""):
     """Create interactive chart from dataframe."""
     st.subheader("📊 Visualize Data")
 
-    # Chart type selection
-    chart_type = st.selectbox(
-        "Chart Type",
-        ["Bar Chart", "Stacked Bar", "Line Chart", "Scatter Plot", "Pie Chart", "Treemap", "Table"],
-        key=f"chart_type_{unique_id}"
-    )
-
     numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
     all_cols = df.columns.tolist()
+
+    # Get available chart types based on data structure
+    available_charts = get_available_chart_types(df)
+
+    # Show info about why certain charts might not be available
+    if len(available_charts) == 1 and available_charts[0] == "Table":
+        if len(df) == 0:
+            st.info("ℹ️ No data to visualize. Showing table only.")
+        elif len(df) == 1:
+            st.info("ℹ️ Single row results are best viewed as a table. Charts require multiple rows for meaningful visualization.")
+        elif len(numeric_cols) == 0:
+            st.info("ℹ️ No numeric columns found. Charts require at least one numeric column. Showing table only.")
+
+    # Chart type selection - only show available options
+    chart_type = st.selectbox(
+        "Chart Type",
+        available_charts,
+        key=f"chart_type_{unique_id}"
+    )
 
     if chart_type == "Bar Chart" and len(numeric_cols) >= 1:
         x_col = st.selectbox("X-axis", all_cols, key=f"bar_x_{unique_id}")
@@ -751,8 +901,11 @@ def main():
         with thinking_placeholder:
             st.info("🤔 Thinking...")
 
-        # Process question
-        response = run_async(st.session_state.assistant.process_question(question))
+        # Get conversation history (exclude the current question, which was just added)
+        conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
+
+        # Process question with conversation context
+        response = run_async(st.session_state.assistant.process_question(question, conversation_history=conversation_history))
 
         # Clear thinking message
         thinking_placeholder.empty()

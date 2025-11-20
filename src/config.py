@@ -40,13 +40,6 @@ class Config:
             "claude-sonnet-4-20250514"
         )
 
-        # Vector Search Configuration
-        self.QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
-        self.QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
-        self.OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
-        self.EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-        self.VECTOR_COLLECTION = os.getenv("VECTOR_COLLECTION", "schema_entities")
-
         # Database Configuration (PostgreSQL by default)
         self.DB_TYPE = os.getenv("DB_TYPE", "postgres").lower()
         self.DB_HOST = os.getenv("DB_HOST", "postgres")
@@ -126,8 +119,6 @@ class Config:
         logging.info(f"Log level: {log_level}")
         logging.info(f"Claude model: {self.ANTHROPIC_MODEL}")
         logging.info(f"Database: {self.DB_TYPE} @ {self.DB_HOST}")
-        logging.info(f"Vector DB: Qdrant @ {self.QDRANT_HOST}:{self.QDRANT_PORT}")
-        logging.info(f"Embeddings: {self.EMBEDDING_MODEL} @ {self.OLLAMA_URL}")
         logging.info("="*70)
 
     @property
