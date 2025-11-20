@@ -234,7 +234,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-class WrenAssistant:
+class DataAssistant:
     """
     Main application class - Simplified UI coordinator.
 
@@ -243,10 +243,12 @@ class WrenAssistant:
     - QuestionClassifier: Classifies question intent
     - ResponseGenerator: Generates conversational responses
     - PipelineOrchestrator: Coordinates the workflow
+
+    Note: Renamed from WrenAssistant to avoid confusion - we don't use Wren AI.
     """
 
     def __init__(self):
-        """Initialize AI assistant."""
+        """Initialize data assistant."""
         self.config = Config()
         self.sql_generator = None
         self.result_validator = None
@@ -322,14 +324,14 @@ class WrenAssistant:
         )
 
         self.initialized = True
-        logger.info("✅ WrenAssistant fully initialized with new architecture")
+        logger.info("✅ DataAssistant fully initialized with new architecture")
 
     async def process_question(self, question: str, conversation_history: list = None) -> Dict[str, Any]:
         """
         Process user question through the pipeline orchestrator.
 
         This method now delegates to the PipelineOrchestrator for all
-        question processing logic, keeping WrenAssistant focused on
+        question processing logic, keeping DataAssistant focused on
         UI coordination.
 
         Args:
@@ -360,7 +362,7 @@ def init_session_state():
         st.session_state.messages = []
 
     if 'assistant' not in st.session_state:
-        st.session_state.assistant = WrenAssistant()
+        st.session_state.assistant = DataAssistant()
 
     if 'initialized' not in st.session_state:
         st.session_state.initialized = False

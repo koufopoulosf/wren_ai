@@ -12,7 +12,7 @@ from .question_classifier import QuestionClassifier
 from .response_generator import ResponseGenerator
 from .sql_generator import SQLGenerator
 from .result_validator import ResultValidator
-from .exceptions import WrenAIError
+from .exceptions import DataAssistantError
 
 logger = logging.getLogger(__name__)
 
