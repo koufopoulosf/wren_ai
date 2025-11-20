@@ -5,6 +5,7 @@ Orchestrates the query processing pipeline from question to results.
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, List
 from anthropic import Anthropic
 
@@ -167,13 +168,36 @@ class PipelineOrchestrator:
             if has_warnings:
                 response['warnings'].append(warning_msg)
 
-            # Step 6: Generate conversational explanation
-            explanation = await self.response_generator.generate(
+            # Step 6 & 8: Parallelize independent LLM calls for better performance
+            # Run response generation and insights generation in parallel
+            explanation_task = self.response_generator.generate(
                 question=question,
                 sql=sql,
                 results=results,
                 conversation_history=conversation_history
             )
+
+            # Only generate insights if we have results
+            if results and len(results) > 0:
+                insights_task = self.insight_generator.generate_insights(
+                    question=question,
+                    sql=sql,
+                    results=results
+                )
+                # Execute both tasks in parallel
+                explanation, insights = await asyncio.gather(
+                    explanation_task,
+                    insights_task
+                )
+                response['insights'] = insights.to_dict()
+
+                # Add insight summary to suggestions if available
+                if insights.has_insights() and insights.summary:
+                    response['suggestions'].insert(0, f"💡 {insights.summary}")
+            else:
+                # Only explanation needed, no insights
+                explanation = await explanation_task
+
             response['explanation'] = explanation
 
             # Step 7: Validate response quality (Phase 2)
@@ -195,19 +219,6 @@ class PipelineOrchestrator:
             if validation.issues:
                 for issue in validation.issues:
                     response['warnings'].append(f"⚠️ {issue}")
-
-            # Step 8: Generate insights from results (Phase 2)
-            if results and len(results) > 0:
-                insights = await self.insight_generator.generate_insights(
-                    question=question,
-                    sql=sql,
-                    results=results
-                )
-                response['insights'] = insights.to_dict()
-
-                # Add insight summary to suggestions if available
-                if insights.has_insights() and insights.summary:
-                    response['suggestions'].insert(0, f"💡 {insights.summary}")
 
             # Step 9: Calculate detailed confidence score (Phase 2)
             confidence_score = self.confidence_calculator.calculate_confidence(

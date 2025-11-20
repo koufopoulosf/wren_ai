@@ -29,16 +29,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from config import Config
-from sql_generator import SQLGenerator
-from result_validator import ResultValidator
-from query_explainer import QueryExplainer
-from question_classifier import QuestionClassifier
-from response_generator import ResponseGenerator
-from pipeline_orchestrator import PipelineOrchestrator
-from context_manager import ContextManager
-from response_validator import ResponseValidator
-from insight_generator import InsightGenerator
-from confidence_calculator import ConfidenceCalculator
+from factory import ComponentFactory
 
 # Page config
 st.set_page_config(
@@ -250,110 +241,36 @@ class DataAssistant:
     """
 
     def __init__(self):
-        """Initialize data assistant."""
+        """Initialize data assistant with factory pattern."""
         self.config = Config()
-        self.sql_generator = None
-        self.result_validator = None
-        self.explainer = None
-        self.classifier = None
-        self.response_generator = None
-        self.context_manager = None
-        self.response_validator = None
-        self.insight_generator = None
-        self.confidence_calculator = None
-        self.orchestrator = None
+        self.factory = ComponentFactory(self.config)
         self.initialized = False
         self.schema_info = {"tables": [], "relationships": []}
 
     async def initialize(self):
-        """Initialize async components."""
+        """Initialize async components using factory pattern."""
         if self.initialized:
             return
 
-        # Database config
-        db_config = {
-            "host": self.config.DB_HOST,
-            "port": self.config.DB_PORT,
-            "database": self.config.DB_DATABASE,
-            "user": self.config.DB_USER,
-            "password": self.config.DB_PASSWORD,
-            "ssl": "require" if self.config.DB_SSL else "disable"
-        }
+        # Create orchestrator (factory handles all component wiring)
+        self.orchestrator = self.factory.create_pipeline_orchestrator()
 
-        # Initialize SQL generator (simplified - no vector search needed)
-        self.sql_generator = SQLGenerator(
-            anthropic_client=self.config.anthropic_client,
-            db_config=db_config,
-            model=self.config.ANTHROPIC_MODEL,
-            db_type=self.config.DB_TYPE
-        )
+        # Get SQL generator for schema loading
+        sql_generator = self.factory.get_component('sql_generator')
 
         # Load basic schema info for display
-        await self.sql_generator.connect_db()
+        await sql_generator.connect_db()
         try:
-            # Get table names using public method (not accessing private attributes)
-            table_names = await self.sql_generator.get_table_names()
+            # Get table names using public method
+            table_names = await sql_generator.get_table_names()
             self.schema_info["tables"] = [{"name": name} for name in table_names]
             logger.info(f"✅ Loaded schema: {len(self.schema_info['tables'])} tables")
         except Exception as e:
             logger.warning(f"Could not load schema info: {e}")
             self.schema_info["tables"] = []
 
-        # Initialize validators
-        self.result_validator = ResultValidator(
-            max_rows_warning=self.config.MAX_ROWS_DISPLAY
-        )
-
-        # Initialize explainer
-        self.explainer = QueryExplainer(
-            anthropic_client=self.config.anthropic_client,
-            model=self.config.ANTHROPIC_MODEL
-        )
-
-        # Initialize new specialized components
-        self.classifier = QuestionClassifier(
-            anthropic_client=self.config.anthropic_client,
-            model=self.config.ANTHROPIC_MODEL
-        )
-
-        self.response_generator = ResponseGenerator(
-            anthropic_client=self.config.anthropic_client,
-            model=self.config.ANTHROPIC_MODEL
-        )
-
-        # Initialize context manager for strong conversation memory
-        self.context_manager = ContextManager(
-            anthropic_client=self.config.anthropic_client,
-            model=self.config.ANTHROPIC_MODEL
-        )
-
-        # Initialize Phase 2 components - Response validation and insights
-        self.response_validator = ResponseValidator(
-            anthropic_client=self.config.anthropic_client,
-            model=self.config.ANTHROPIC_MODEL
-        )
-
-        self.insight_generator = InsightGenerator(
-            anthropic_client=self.config.anthropic_client,
-            model=self.config.ANTHROPIC_MODEL
-        )
-
-        self.confidence_calculator = ConfidenceCalculator()
-
-        # Initialize orchestrator with all components including Phase 2 improvements
-        self.orchestrator = PipelineOrchestrator(
-            classifier=self.classifier,
-            response_generator=self.response_generator,
-            sql_generator=self.sql_generator,
-            result_validator=self.result_validator,
-            context_manager=self.context_manager,
-            response_validator=self.response_validator,
-            insight_generator=self.insight_generator,
-            confidence_calculator=self.confidence_calculator
-        )
-
         self.initialized = True
-        logger.info("✅ DataAssistant fully initialized with Phase 2 components (validation, insights, enhanced confidence)")
+        logger.info("✅ DataAssistant fully initialized with all components")
 
     async def process_question(
         self,
@@ -393,7 +310,7 @@ class DataAssistant:
         )
 
 
-def init_session_state():
+def init_session_state() -> None:
     """Initialize session state variables."""
     if 'messages' not in st.session_state:
         st.session_state.messages = []
@@ -405,7 +322,7 @@ def init_session_state():
         st.session_state.initialized = False
 
 
-def display_message(role: str, content: str, metadata: Dict = None):
+def display_message(role: str, content: str, metadata: Dict[str, Any] = None) -> None:
     """Display a chat message with styling."""
     if role == "user":
         st.markdown(f'<div class="user-message">{content}</div>', unsafe_allow_html=True)
@@ -617,7 +534,7 @@ def get_available_chart_types(df: pd.DataFrame) -> list:
     return available_charts
 
 
-def create_chart(df: pd.DataFrame, unique_id: str = ""):
+def create_chart(df: pd.DataFrame, unique_id: str = "") -> None:
     """Create interactive chart from dataframe."""
     st.subheader("📊 Visualize Data")
 
@@ -724,7 +641,7 @@ def create_chart(df: pd.DataFrame, unique_id: str = ""):
         st.dataframe(df, use_container_width=True)
 
 
-def get_or_create_event_loop():
+def get_or_create_event_loop() -> asyncio.AbstractEventLoop:
     """
     Get or create an event loop for the session.
 
@@ -747,7 +664,7 @@ def get_or_create_event_loop():
     return st.session_state.event_loop
 
 
-def run_async(coro):
+def run_async(coro) -> Any:
     """
     Run async coroutine with proper event loop handling for Streamlit.
 
@@ -758,7 +675,7 @@ def run_async(coro):
     return loop.run_until_complete(coro)
 
 
-def main():
+def main() -> None:
     """Main application."""
     init_session_state()
 

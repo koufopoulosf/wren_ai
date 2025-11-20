@@ -8,7 +8,7 @@ for Data Assistant (Streamlit).
 import os
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from anthropic import Anthropic
 
@@ -154,3 +154,19 @@ class Config:
 
         logging.info("✅ All required configuration validated")
         return True
+
+    def get_db_config(self) -> Dict[str, Any]:
+        """
+        Get database configuration as a dictionary.
+
+        Returns:
+            Dictionary with database connection parameters suitable for asyncpg
+        """
+        return {
+            "host": self.DB_HOST,
+            "port": self.DB_PORT,
+            "database": self.DB_DATABASE,
+            "user": self.DB_USER,
+            "password": self.DB_PASSWORD,
+            "ssl": "require" if self.DB_SSL else "disable"
+        }
