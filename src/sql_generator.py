@@ -12,6 +12,7 @@ import logging
 from typing import List, Dict, Any, Optional
 import asyncio
 import asyncpg
+import time
 from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,11 @@ class SQLGenerator:
         self.model = model
         self._db_conn = None
 
+        # Schema caching (5 minute TTL)
+        self._schema_cache = None
+        self._schema_cache_time = 0
+        self._schema_cache_ttl = 300  # 5 minutes in seconds
+
         logger.info(f"SQLGenerator initialized with model: {model}")
 
     async def connect_db(self):
@@ -61,13 +67,26 @@ class SQLGenerator:
             self._db_conn = None
             logger.info("Disconnected from database")
 
-    async def get_schema_ddl(self) -> str:
+    async def get_schema_ddl(self, force_refresh: bool = False) -> str:
         """
-        Get schema as DDL (CREATE TABLE statements).
+        Get schema as DDL (CREATE TABLE statements) with caching.
+
+        Args:
+            force_refresh: If True, bypass cache and fetch fresh schema
 
         Returns:
             DDL string for all tables
         """
+        # Check cache first (unless force refresh)
+        current_time = time.time()
+        cache_age = current_time - self._schema_cache_time
+
+        if not force_refresh and self._schema_cache and cache_age < self._schema_cache_ttl:
+            logger.info(f"Using cached schema (age: {cache_age:.1f}s, TTL: {self._schema_cache_ttl}s)")
+            return self._schema_cache
+
+        # Cache miss or expired - fetch from database
+        logger.info("Fetching fresh schema from database...")
         await self.connect_db()
 
         # Get all table definitions
@@ -112,7 +131,14 @@ class SQLGenerator:
             ddl = f"CREATE TABLE {table_name} (\n" + ",\n".join(col_defs) + "\n);"
             ddl_parts.append(ddl)
 
-        return "\n\n".join(ddl_parts)
+        schema_ddl = "\n\n".join(ddl_parts)
+
+        # Update cache
+        self._schema_cache = schema_ddl
+        self._schema_cache_time = current_time
+        logger.info(f"Schema cached (TTL: {self._schema_cache_ttl}s)")
+
+        return schema_ddl
 
     async def generate_sql(
         self,
