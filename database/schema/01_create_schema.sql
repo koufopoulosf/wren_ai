@@ -39,6 +39,16 @@ CREATE TABLE blockchains (
 );
 
 COMMENT ON TABLE blockchains IS 'Blockchain networks where tokens exist';
+COMMENT ON COLUMN blockchains.blockchain_id IS 'Unique identifier for blockchain network';
+COMMENT ON COLUMN blockchains.name IS 'Full name of blockchain (e.g., Ethereum, Binance Smart Chain)';
+COMMENT ON COLUMN blockchains.symbol IS 'Short symbol for blockchain native token';
+COMMENT ON COLUMN blockchains.chain_id IS 'Network chain ID used for transactions';
+COMMENT ON COLUMN blockchains.consensus_mechanism IS 'Consensus mechanism: PoW, PoS, DPoS, etc.';
+COMMENT ON COLUMN blockchains.block_time_seconds IS 'Average time between blocks in seconds';
+COMMENT ON COLUMN blockchains.native_token IS 'Native token symbol (ETH for Ethereum, BNB for BSC)';
+COMMENT ON COLUMN blockchains.status IS 'Network status: active, deprecated, testnet';
+COMMENT ON COLUMN blockchains.launched_date IS 'Date when blockchain was launched';
+COMMENT ON COLUMN blockchains.created_at IS 'Timestamp when record was created in database';
 
 -- Users table
 CREATE TABLE users (
@@ -55,6 +65,16 @@ CREATE TABLE users (
 );
 
 COMMENT ON TABLE users IS 'Platform users and traders';
+COMMENT ON COLUMN users.user_id IS 'Unique identifier for user account';
+COMMENT ON COLUMN users.username IS 'Unique username for login';
+COMMENT ON COLUMN users.email IS 'User email address for notifications and login';
+COMMENT ON COLUMN users.kyc_status IS 'KYC verification status: pending, verified, rejected';
+COMMENT ON COLUMN users.account_tier IS 'Account level: basic, premium, institutional';
+COMMENT ON COLUMN users.country_code IS 'ISO 3166-1 alpha-2 country code';
+COMMENT ON COLUMN users.registration_date IS 'Timestamp when user registered';
+COMMENT ON COLUMN users.last_login IS 'Timestamp of most recent login';
+COMMENT ON COLUMN users.total_trades IS 'Total number of trades executed by user';
+COMMENT ON COLUMN users.total_volume_usd IS 'Lifetime trading volume in USD';
 
 -- Tokens table (Main token information)
 CREATE TABLE tokens (
@@ -76,8 +96,21 @@ CREATE TABLE tokens (
 );
 
 COMMENT ON TABLE tokens IS 'Core token/cryptocurrency information';
+COMMENT ON COLUMN tokens.token_id IS 'Unique identifier for token';
 COMMENT ON COLUMN tokens.code IS 'Unique token identifier or contract address';
+COMMENT ON COLUMN tokens.name IS 'Full token name (e.g., Bitcoin, Ethereum)';
 COMMENT ON COLUMN tokens.ticker IS 'Trading symbol (BTC, ETH, etc.)';
+COMMENT ON COLUMN tokens.blockchain_id IS 'Reference to blockchain where token exists';
+COMMENT ON COLUMN tokens.token_type IS 'Token standard: native, erc20, erc721, bep20, spl';
+COMMENT ON COLUMN tokens.total_supply IS 'Total token supply including unminted';
+COMMENT ON COLUMN tokens.circulating_supply IS 'Current circulating supply in market';
+COMMENT ON COLUMN tokens.max_supply IS 'Maximum possible supply (null if unlimited)';
+COMMENT ON COLUMN tokens.decimals IS 'Number of decimal places for token';
+COMMENT ON COLUMN tokens.contract_address IS 'Smart contract address on blockchain';
+COMMENT ON COLUMN tokens.status IS 'Token status: active, delisted, deprecated';
+COMMENT ON COLUMN tokens.launch_date IS 'Date when token was launched';
+COMMENT ON COLUMN tokens.created_at IS 'Timestamp when record was created';
+COMMENT ON COLUMN tokens.updated_at IS 'Timestamp when record was last updated';
 
 -- Token metadata (additional info)
 CREATE TABLE token_metadata (
@@ -98,6 +131,20 @@ CREATE TABLE token_metadata (
 );
 
 COMMENT ON TABLE token_metadata IS 'Extended token metadata and social links';
+COMMENT ON COLUMN token_metadata.metadata_id IS 'Unique identifier for metadata record';
+COMMENT ON COLUMN token_metadata.token_id IS 'Reference to parent token';
+COMMENT ON COLUMN token_metadata.description IS 'Detailed token description and purpose';
+COMMENT ON COLUMN token_metadata.website_url IS 'Official project website';
+COMMENT ON COLUMN token_metadata.whitepaper_url IS 'Link to project whitepaper';
+COMMENT ON COLUMN token_metadata.github_url IS 'GitHub repository URL';
+COMMENT ON COLUMN token_metadata.twitter_handle IS 'Twitter/X account handle';
+COMMENT ON COLUMN token_metadata.telegram_url IS 'Telegram community link';
+COMMENT ON COLUMN token_metadata.category IS 'Token category: DeFi, NFT, Gaming, Infrastructure, etc.';
+COMMENT ON COLUMN token_metadata.market_cap_rank IS 'Current market cap ranking';
+COMMENT ON COLUMN token_metadata.coingecko_id IS 'CoinGecko API identifier';
+COMMENT ON COLUMN token_metadata.coinmarketcap_id IS 'CoinMarketCap API identifier';
+COMMENT ON COLUMN token_metadata.logo_url IS 'Token logo image URL';
+COMMENT ON COLUMN token_metadata.created_at IS 'Timestamp when record was created';
 
 -- =====================================================
 -- PRICE AND MARKET DATA TABLES
@@ -122,7 +169,19 @@ CREATE TABLE token_price_history (
 );
 
 COMMENT ON TABLE token_price_history IS 'Historical OHLCV (Open, High, Low, Close, Volume) price data';
+COMMENT ON COLUMN token_price_history.price_history_id IS 'Unique identifier for price record';
+COMMENT ON COLUMN token_price_history.token_id IS 'Reference to token';
+COMMENT ON COLUMN token_price_history.timestamp IS 'Timestamp of price snapshot';
+COMMENT ON COLUMN token_price_history.open_price IS 'Opening price for time period';
+COMMENT ON COLUMN token_price_history.high_price IS 'Highest price during time period';
+COMMENT ON COLUMN token_price_history.low_price IS 'Lowest price during time period';
+COMMENT ON COLUMN token_price_history.close_price IS 'Closing price for time period';
+COMMENT ON COLUMN token_price_history.volume_24h IS 'Trading volume in 24 hours (token amount)';
+COMMENT ON COLUMN token_price_history.volume_24h_usd IS 'Trading volume in 24 hours (USD value)';
+COMMENT ON COLUMN token_price_history.market_cap IS 'Market capitalization in USD';
+COMMENT ON COLUMN token_price_history.price_change_24h IS 'Price change percentage over 24 hours';
 COMMENT ON COLUMN token_price_history.interval IS 'Time interval: 1m, 5m, 15m, 1h, 4h, 1d, 1w';
+COMMENT ON COLUMN token_price_history.created_at IS 'Timestamp when record was created';
 
 -- Token volume (aggregated by exchange/date)
 CREATE TABLE token_volume (
@@ -141,8 +200,17 @@ CREATE TABLE token_volume (
 );
 
 COMMENT ON TABLE token_volume IS 'Daily aggregated trading volume by token';
+COMMENT ON COLUMN token_volume.volume_id IS 'Unique identifier for volume record';
+COMMENT ON COLUMN token_volume.token_id IS 'Reference to token';
+COMMENT ON COLUMN token_volume.date IS 'Date of volume aggregation';
+COMMENT ON COLUMN token_volume.total_volume IS 'Total trading volume in token amount';
+COMMENT ON COLUMN token_volume.total_volume_usd IS 'Total trading volume in USD';
+COMMENT ON COLUMN token_volume.buy_volume IS 'Buy side volume in token amount';
+COMMENT ON COLUMN token_volume.sell_volume IS 'Sell side volume in token amount';
 COMMENT ON COLUMN token_volume.trade_count IS 'Number of trades executed';
 COMMENT ON COLUMN token_volume.unique_traders IS 'Number of unique traders';
+COMMENT ON COLUMN token_volume.average_trade_size IS 'Average trade size in token amount';
+COMMENT ON COLUMN token_volume.created_at IS 'Timestamp when record was created';
 
 -- Token revenue (fees, rewards, etc.)
 CREATE TABLE token_revenue (
@@ -158,7 +226,15 @@ CREATE TABLE token_revenue (
 );
 
 COMMENT ON TABLE token_revenue IS 'Revenue generated from various token activities';
+COMMENT ON COLUMN token_revenue.revenue_id IS 'Unique identifier for revenue record';
+COMMENT ON COLUMN token_revenue.token_id IS 'Reference to token';
+COMMENT ON COLUMN token_revenue.date IS 'Date of revenue generation';
 COMMENT ON COLUMN token_revenue.revenue_type IS 'Type: trading_fees, staking_rewards, transaction_fees, burn';
+COMMENT ON COLUMN token_revenue.amount IS 'Revenue amount in token';
+COMMENT ON COLUMN token_revenue.amount_usd IS 'Revenue amount in USD';
+COMMENT ON COLUMN token_revenue.source IS 'Revenue source: exchange name, protocol name, etc.';
+COMMENT ON COLUMN token_revenue.description IS 'Additional details about revenue';
+COMMENT ON COLUMN token_revenue.created_at IS 'Timestamp when record was created';
 
 -- =====================================================
 -- WALLET AND HOLDINGS TABLES
@@ -177,6 +253,14 @@ CREATE TABLE wallets (
 );
 
 COMMENT ON TABLE wallets IS 'User cryptocurrency wallets';
+COMMENT ON COLUMN wallets.wallet_id IS 'Unique identifier for wallet';
+COMMENT ON COLUMN wallets.user_id IS 'Reference to wallet owner';
+COMMENT ON COLUMN wallets.wallet_address IS 'Unique blockchain wallet address';
+COMMENT ON COLUMN wallets.blockchain_id IS 'Reference to blockchain network';
+COMMENT ON COLUMN wallets.wallet_type IS 'Wallet type: custodial, non-custodial, hardware, exchange';
+COMMENT ON COLUMN wallets.label IS 'User-defined wallet label or name';
+COMMENT ON COLUMN wallets.is_active IS 'Whether wallet is currently active';
+COMMENT ON COLUMN wallets.created_at IS 'Timestamp when wallet was added';
 
 -- Wallet balances (current holdings)
 CREATE TABLE wallet_balances (
@@ -191,8 +275,13 @@ CREATE TABLE wallet_balances (
 );
 
 COMMENT ON TABLE wallet_balances IS 'Current token balances per wallet';
-COMMENT ON COLUMN wallet_balances.available_balance IS 'Balance available for trading';
+COMMENT ON COLUMN wallet_balances.balance_id IS 'Unique identifier for balance record';
+COMMENT ON COLUMN wallet_balances.wallet_id IS 'Reference to wallet';
+COMMENT ON COLUMN wallet_balances.token_id IS 'Reference to token';
+COMMENT ON COLUMN wallet_balances.balance IS 'Total balance of token in wallet';
+COMMENT ON COLUMN wallet_balances.available_balance IS 'Balance available for trading (not locked)';
 COMMENT ON COLUMN wallet_balances.locked_balance IS 'Balance locked in orders or staking';
+COMMENT ON COLUMN wallet_balances.updated_at IS 'Timestamp when balance was last updated';
 
 -- Token holdings (snapshot history for analytics)
 CREATE TABLE token_holdings (
@@ -210,8 +299,16 @@ CREATE TABLE token_holdings (
 );
 
 COMMENT ON TABLE token_holdings IS 'Historical snapshot of user token holdings for analytics';
-COMMENT ON COLUMN token_holdings.unrealized_pnl IS 'Unrealized profit/loss';
-COMMENT ON COLUMN token_holdings.realized_pnl IS 'Realized profit/loss from sales';
+COMMENT ON COLUMN token_holdings.holding_id IS 'Unique identifier for holding snapshot';
+COMMENT ON COLUMN token_holdings.user_id IS 'Reference to token holder';
+COMMENT ON COLUMN token_holdings.token_id IS 'Reference to token';
+COMMENT ON COLUMN token_holdings.snapshot_date IS 'Date of holdings snapshot';
+COMMENT ON COLUMN token_holdings.total_balance IS 'Total token balance at snapshot time';
+COMMENT ON COLUMN token_holdings.balance_usd IS 'USD value of holdings at snapshot time';
+COMMENT ON COLUMN token_holdings.average_buy_price IS 'Average price paid for token';
+COMMENT ON COLUMN token_holdings.unrealized_pnl IS 'Unrealized profit/loss (current value vs cost basis)';
+COMMENT ON COLUMN token_holdings.realized_pnl IS 'Realized profit/loss from completed sales';
+COMMENT ON COLUMN token_holdings.created_at IS 'Timestamp when snapshot was created';
 
 -- =====================================================
 -- EXCHANGE AND TRADING TABLES
@@ -234,6 +331,18 @@ CREATE TABLE exchanges (
 );
 
 COMMENT ON TABLE exchanges IS 'Cryptocurrency exchanges';
+COMMENT ON COLUMN exchanges.exchange_id IS 'Unique identifier for exchange';
+COMMENT ON COLUMN exchanges.name IS 'Exchange name (e.g., Binance, Coinbase, Uniswap)';
+COMMENT ON COLUMN exchanges.type IS 'Exchange type: centralized, decentralized, hybrid';
+COMMENT ON COLUMN exchanges.country IS 'Country where exchange is registered';
+COMMENT ON COLUMN exchanges.website_url IS 'Exchange website URL';
+COMMENT ON COLUMN exchanges.api_available IS 'Whether exchange provides public API';
+COMMENT ON COLUMN exchanges.trading_fee_percentage IS 'Default trading fee percentage';
+COMMENT ON COLUMN exchanges.volume_24h_usd IS 'Total 24-hour trading volume in USD';
+COMMENT ON COLUMN exchanges.trust_score IS 'Trust score rating from 1-10';
+COMMENT ON COLUMN exchanges.status IS 'Exchange status: active, maintenance, closed';
+COMMENT ON COLUMN exchanges.launched_date IS 'Date when exchange was launched';
+COMMENT ON COLUMN exchanges.created_at IS 'Timestamp when record was created';
 
 -- Exchange listings
 CREATE TABLE exchange_listings (
@@ -250,6 +359,15 @@ CREATE TABLE exchange_listings (
 );
 
 COMMENT ON TABLE exchange_listings IS 'Tokens listed on exchanges';
+COMMENT ON COLUMN exchange_listings.listing_id IS 'Unique identifier for listing';
+COMMENT ON COLUMN exchange_listings.exchange_id IS 'Reference to exchange';
+COMMENT ON COLUMN exchange_listings.token_id IS 'Reference to listed token';
+COMMENT ON COLUMN exchange_listings.listing_date IS 'Date when token was listed';
+COMMENT ON COLUMN exchange_listings.delisting_date IS 'Date when token was delisted (null if still listed)';
+COMMENT ON COLUMN exchange_listings.is_active IS 'Whether listing is currently active';
+COMMENT ON COLUMN exchange_listings.volume_24h IS 'Token 24-hour volume on this exchange';
+COMMENT ON COLUMN exchange_listings.volume_24h_usd IS 'Token 24-hour volume in USD on this exchange';
+COMMENT ON COLUMN exchange_listings.created_at IS 'Timestamp when record was created';
 
 -- Trading pairs
 CREATE TABLE trading_pairs (
@@ -272,7 +390,21 @@ CREATE TABLE trading_pairs (
 );
 
 COMMENT ON TABLE trading_pairs IS 'Trading pairs available on exchanges';
+COMMENT ON COLUMN trading_pairs.pair_id IS 'Unique identifier for trading pair';
+COMMENT ON COLUMN trading_pairs.exchange_id IS 'Reference to exchange';
+COMMENT ON COLUMN trading_pairs.base_token_id IS 'Reference to base token in pair';
+COMMENT ON COLUMN trading_pairs.quote_token_id IS 'Reference to quote token in pair';
+COMMENT ON COLUMN trading_pairs.pair_symbol IS 'Trading pair symbol (e.g., BTC/USDT, ETH/BTC)';
+COMMENT ON COLUMN trading_pairs.current_price IS 'Current trading price';
+COMMENT ON COLUMN trading_pairs.volume_24h IS 'Trading volume in 24 hours (base token)';
+COMMENT ON COLUMN trading_pairs.volume_24h_usd IS 'Trading volume in 24 hours (USD)';
+COMMENT ON COLUMN trading_pairs.price_change_24h IS 'Price change percentage over 24 hours';
+COMMENT ON COLUMN trading_pairs.bid_price IS 'Current highest bid price';
+COMMENT ON COLUMN trading_pairs.ask_price IS 'Current lowest ask price';
 COMMENT ON COLUMN trading_pairs.spread_percentage IS 'Bid-ask spread percentage';
+COMMENT ON COLUMN trading_pairs.is_active IS 'Whether pair is currently tradeable';
+COMMENT ON COLUMN trading_pairs.created_at IS 'Timestamp when record was created';
+COMMENT ON COLUMN trading_pairs.updated_at IS 'Timestamp when record was last updated';
 
 -- Transactions table
 CREATE TABLE transactions (
@@ -296,7 +428,23 @@ CREATE TABLE transactions (
 );
 
 COMMENT ON TABLE transactions IS 'All cryptocurrency transactions';
+COMMENT ON COLUMN transactions.transaction_id IS 'Unique identifier for transaction';
+COMMENT ON COLUMN transactions.user_id IS 'Reference to user who initiated transaction';
+COMMENT ON COLUMN transactions.from_wallet_id IS 'Reference to source wallet';
+COMMENT ON COLUMN transactions.to_wallet_id IS 'Reference to destination wallet';
+COMMENT ON COLUMN transactions.token_id IS 'Reference to token being transacted';
 COMMENT ON COLUMN transactions.transaction_type IS 'Type: buy, sell, transfer, swap, stake, unstake';
+COMMENT ON COLUMN transactions.amount IS 'Amount of token transacted';
+COMMENT ON COLUMN transactions.price_per_token IS 'Price per token at time of transaction';
+COMMENT ON COLUMN transactions.total_value_usd IS 'Total transaction value in USD';
+COMMENT ON COLUMN transactions.fee IS 'Transaction fee in token';
+COMMENT ON COLUMN transactions.fee_usd IS 'Transaction fee in USD';
+COMMENT ON COLUMN transactions.transaction_hash IS 'Blockchain transaction hash';
+COMMENT ON COLUMN transactions.blockchain_id IS 'Reference to blockchain network';
+COMMENT ON COLUMN transactions.exchange_id IS 'Reference to exchange (if applicable)';
+COMMENT ON COLUMN transactions.status IS 'Transaction status: pending, completed, failed, cancelled';
+COMMENT ON COLUMN transactions.timestamp IS 'Timestamp when transaction occurred';
+COMMENT ON COLUMN transactions.created_at IS 'Timestamp when record was created';
 
 -- =====================================================
 -- DEFI AND STAKING TABLES
@@ -319,7 +467,18 @@ CREATE TABLE staking_records (
 );
 
 COMMENT ON TABLE staking_records IS 'Token staking records and rewards';
+COMMENT ON COLUMN staking_records.staking_id IS 'Unique identifier for staking record';
+COMMENT ON COLUMN staking_records.user_id IS 'Reference to user who staked tokens';
+COMMENT ON COLUMN staking_records.token_id IS 'Reference to staked token';
+COMMENT ON COLUMN staking_records.staked_amount IS 'Amount of tokens staked';
+COMMENT ON COLUMN staking_records.staking_period_days IS 'Staking lock-up period in days (null for flexible)';
 COMMENT ON COLUMN staking_records.apr_percentage IS 'Annual percentage rate for staking rewards';
+COMMENT ON COLUMN staking_records.rewards_earned IS 'Total rewards earned in token';
+COMMENT ON COLUMN staking_records.rewards_earned_usd IS 'Total rewards earned in USD';
+COMMENT ON COLUMN staking_records.start_date IS 'Timestamp when staking started';
+COMMENT ON COLUMN staking_records.end_date IS 'Timestamp when staking ended (null if still active)';
+COMMENT ON COLUMN staking_records.status IS 'Staking status: active, completed, withdrawn';
+COMMENT ON COLUMN staking_records.created_at IS 'Timestamp when record was created';
 
 -- Liquidity pools
 CREATE TABLE liquidity_pools (
@@ -341,7 +500,21 @@ CREATE TABLE liquidity_pools (
 );
 
 COMMENT ON TABLE liquidity_pools IS 'DeFi liquidity pools';
-COMMENT ON COLUMN liquidity_pools.apy_percentage IS 'Annual percentage yield';
+COMMENT ON COLUMN liquidity_pools.pool_id IS 'Unique identifier for liquidity pool';
+COMMENT ON COLUMN liquidity_pools.pool_name IS 'Name of liquidity pool';
+COMMENT ON COLUMN liquidity_pools.protocol IS 'DeFi protocol: Uniswap, PancakeSwap, SushiSwap, etc.';
+COMMENT ON COLUMN liquidity_pools.blockchain_id IS 'Reference to blockchain network';
+COMMENT ON COLUMN liquidity_pools.token_a_id IS 'Reference to first token in pair';
+COMMENT ON COLUMN liquidity_pools.token_b_id IS 'Reference to second token in pair';
+COMMENT ON COLUMN liquidity_pools.token_a_reserve IS 'Reserve amount of token A in pool';
+COMMENT ON COLUMN liquidity_pools.token_b_reserve IS 'Reserve amount of token B in pool';
+COMMENT ON COLUMN liquidity_pools.total_liquidity_usd IS 'Total liquidity value in USD';
+COMMENT ON COLUMN liquidity_pools.volume_24h_usd IS 'Trading volume in last 24 hours (USD)';
+COMMENT ON COLUMN liquidity_pools.fee_percentage IS 'Trading fee percentage charged by pool';
+COMMENT ON COLUMN liquidity_pools.apy_percentage IS 'Annual percentage yield for liquidity providers';
+COMMENT ON COLUMN liquidity_pools.is_active IS 'Whether pool is currently active';
+COMMENT ON COLUMN liquidity_pools.created_at IS 'Timestamp when record was created';
+COMMENT ON COLUMN liquidity_pools.updated_at IS 'Timestamp when record was last updated';
 
 -- =====================================================
 -- INDEXES FOR PERFORMANCE

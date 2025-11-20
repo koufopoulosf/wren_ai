@@ -1,12 +1,6 @@
 # Streamlit UI
 streamlit
 
-# Async support
-aiohttp
-
-# HTTP client for Wren AI
-httpx
-
 # Claude API (Anthropic)
 anthropic
 
@@ -19,12 +13,7 @@ numpy
 
 # Visualization (charts)
 plotly
-kaleido
 
 # Database connectors
-redshift-connector  # For Redshift
-psycopg2-binary  # For Postgres (sync)
-asyncpg  # For Postgres (async - for schema introspection)
-
-# SQL parsing (for schema validation)
-sqlparse
+asyncpg  # PostgreSQL (async)
+redshift-connector  # AWS Redshift
