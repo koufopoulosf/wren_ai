@@ -860,7 +860,7 @@ SELECT
     (random() * 99 + 1)::INTEGER,
     (random() * 49 + 1)::INTEGER,
     (random() * 799 + 1)::INTEGER,
-    (random() * 4 + 1)::INTEGER + 1, -- 1-5 stars
+    (random() * 5)::INTEGER + 1, -- 1-5 stars
     CASE (random() * 5)::INTEGER
         WHEN 0 THEN 'Great product!'
         WHEN 1 THEN 'Excellent quality'
