@@ -18,6 +18,9 @@ from .question_classifier import QuestionClassifier
 from .response_generator import ResponseGenerator
 from .pipeline_orchestrator import PipelineOrchestrator
 from .context_manager import ContextManager, ConversationContext, Message
+from .response_validator import ResponseValidator
+from .insight_generator import InsightGenerator
+from .confidence_calculator import ConfidenceCalculator
 
 # Utilities
 from .llm_utils import LLMUtils
@@ -36,6 +39,9 @@ __all__ = [
     "ContextManager",
     "ConversationContext",
     "Message",
+    "ResponseValidator",
+    "InsightGenerator",
+    "ConfidenceCalculator",
     # Utilities
     "LLMUtils",
 ]

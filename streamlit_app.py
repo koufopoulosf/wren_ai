@@ -36,6 +36,9 @@ from question_classifier import QuestionClassifier
 from response_generator import ResponseGenerator
 from pipeline_orchestrator import PipelineOrchestrator
 from context_manager import ContextManager
+from response_validator import ResponseValidator
+from insight_generator import InsightGenerator
+from confidence_calculator import ConfidenceCalculator
 
 # Page config
 st.set_page_config(
@@ -257,6 +260,9 @@ class DataAssistant:
         self.classifier = None
         self.response_generator = None
         self.context_manager = None
+        self.response_validator = None
+        self.insight_generator = None
+        self.confidence_calculator = None
         self.orchestrator = None
         self.initialized = False
         self.schema_info = {"tables": [], "relationships": []}
@@ -323,17 +329,33 @@ class DataAssistant:
             model=self.config.ANTHROPIC_MODEL
         )
 
-        # Initialize orchestrator with all components including context manager
+        # Initialize Phase 2 components - Response validation and insights
+        self.response_validator = ResponseValidator(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        self.insight_generator = InsightGenerator(
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
+
+        self.confidence_calculator = ConfidenceCalculator()
+
+        # Initialize orchestrator with all components including Phase 2 improvements
         self.orchestrator = PipelineOrchestrator(
             classifier=self.classifier,
             response_generator=self.response_generator,
             sql_generator=self.sql_generator,
             result_validator=self.result_validator,
-            context_manager=self.context_manager
+            context_manager=self.context_manager,
+            response_validator=self.response_validator,
+            insight_generator=self.insight_generator,
+            confidence_calculator=self.confidence_calculator
         )
 
         self.initialized = True
-        logger.info("✅ DataAssistant fully initialized with context management")
+        logger.info("✅ DataAssistant fully initialized with Phase 2 components (validation, insights, enhanced confidence)")
 
     async def process_question(
         self,
@@ -437,6 +459,109 @@ def display_message(role: str, content: str, metadata: Dict = None):
                 # Show chart if requested
                 if st.session_state.get(f'show_chart_{metadata.get("timestamp", "")}'):
                     create_chart(df, unique_id=metadata.get("timestamp", ""))
+
+            # Display Phase 2 features: Insights
+            insights = metadata.get('insights')
+            if insights and isinstance(insights, dict):
+                # Check if there are any insights to show
+                has_content = any([
+                    insights.get('top_findings'),
+                    insights.get('trends'),
+                    insights.get('outliers'),
+                    insights.get('recommendations')
+                ])
+
+                if has_content:
+                    with st.expander("💎 Key Insights & Findings", expanded=True):
+                        # Show summary if available
+                        if insights.get('summary'):
+                            st.markdown(f"**Summary:** {insights['summary']}")
+                            st.markdown("---")
+
+                        # Top findings
+                        if insights.get('top_findings'):
+                            st.markdown("**📊 Top Findings:**")
+                            for finding in insights['top_findings']:
+                                st.markdown(f"- {finding}")
+                            st.markdown("")
+
+                        # Trends
+                        if insights.get('trends'):
+                            st.markdown("**📈 Trends & Patterns:**")
+                            for trend in insights['trends']:
+                                st.markdown(f"- {trend}")
+                            st.markdown("")
+
+                        # Outliers
+                        if insights.get('outliers'):
+                            st.markdown("**⚠️ Outliers & Anomalies:**")
+                            for outlier in insights['outliers']:
+                                st.markdown(f"- {outlier}")
+                            st.markdown("")
+
+                        # Recommendations
+                        if insights.get('recommendations'):
+                            st.markdown("**💡 Recommendations:**")
+                            for rec in insights['recommendations']:
+                                st.markdown(f"- {rec}")
+
+            # Display Phase 2 features: Validation & Confidence
+            validation = metadata.get('validation')
+            confidence_details = metadata.get('confidence_details')
+
+            if validation or confidence_details:
+                with st.expander("🎯 Confidence & Validation Details", expanded=False):
+                    if confidence_details and isinstance(confidence_details, dict):
+                        # Show confidence level with color coding
+                        level = confidence_details.get('level', 'medium')
+                        overall = confidence_details.get('overall', 0.0)
+                        message = confidence_details.get('message', '')
+
+                        if level == 'high':
+                            st.success(f"{message} (Score: {overall:.2f})")
+                        elif level == 'medium':
+                            st.info(f"{message} (Score: {overall:.2f})")
+                        else:
+                            st.warning(f"{message} (Score: {overall:.2f})")
+
+                        # Show confidence breakdown
+                        st.markdown("**Confidence Breakdown:**")
+                        cols = st.columns(4)
+                        with cols[0]:
+                            st.metric("Schema Match", f"{confidence_details.get('schema_match', 0):.2f}")
+                        with cols[1]:
+                            st.metric("Result Quality", f"{confidence_details.get('result_quality', 0):.2f}")
+                        with cols[2]:
+                            st.metric("Validation", f"{confidence_details.get('validation_score', 0):.2f}")
+                        with cols[3]:
+                            st.metric("Context Usage", f"{confidence_details.get('context_usage', 0):.2f}")
+
+                    if validation and isinstance(validation, dict):
+                        st.markdown("---")
+                        st.markdown("**Validation Details:**")
+
+                        # Show validation status
+                        is_valid = validation.get('is_valid', True)
+                        val_confidence = validation.get('confidence', 0.0)
+
+                        if is_valid:
+                            st.markdown(f"✅ Response validated (Confidence: {val_confidence:.2f})")
+                        else:
+                            st.markdown(f"⚠️ Response has concerns (Confidence: {val_confidence:.2f})")
+
+                        # Show issues if present
+                        issues = validation.get('issues', [])
+                        if issues:
+                            st.markdown("**Issues Found:**")
+                            for issue in issues:
+                                st.markdown(f"- {issue}")
+
+                        # Show validation suggestions
+                        val_suggestions = validation.get('suggestions', [])
+                        if val_suggestions:
+                            st.markdown("**Validation Suggestions:**")
+                            for suggestion in val_suggestions:
+                                st.markdown(f"- {suggestion}")
 
             # Only show warnings/suggestions if they exist and aren't already in content
             warnings = metadata.get('warnings')

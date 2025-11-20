@@ -13,6 +13,9 @@ from .response_generator import ResponseGenerator
 from .sql_generator import SQLGenerator
 from .result_validator import ResultValidator
 from .context_manager import ContextManager
+from .response_validator import ResponseValidator
+from .insight_generator import InsightGenerator
+from .confidence_calculator import ConfidenceCalculator
 from .exceptions import DataAssistantError
 
 logger = logging.getLogger(__name__)
@@ -39,7 +42,10 @@ class PipelineOrchestrator:
         response_generator: ResponseGenerator,
         sql_generator: SQLGenerator,
         result_validator: ResultValidator,
-        context_manager: ContextManager
+        context_manager: ContextManager,
+        response_validator: ResponseValidator,
+        insight_generator: InsightGenerator,
+        confidence_calculator: ConfidenceCalculator
     ):
         """
         Initialize pipeline orchestrator.
@@ -50,13 +56,19 @@ class PipelineOrchestrator:
             sql_generator: SQL generator instance
             result_validator: Result validator instance
             context_manager: Context manager for conversation memory
+            response_validator: Response validator for quality checks
+            insight_generator: Insight generator for key findings
+            confidence_calculator: Confidence calculator for scoring
         """
         self.classifier = classifier
         self.response_generator = response_generator
         self.sql_generator = sql_generator
         self.result_validator = result_validator
         self.context_manager = context_manager
-        logger.info("✅ Pipeline orchestrator initialized with context manager")
+        self.response_validator = response_validator
+        self.insight_generator = insight_generator
+        self.confidence_calculator = confidence_calculator
+        logger.info("✅ Pipeline orchestrator initialized with all Phase 2 components")
 
     async def process(
         self,
@@ -81,7 +93,10 @@ class PipelineOrchestrator:
                 'warnings': List[str],
                 'suggestions': List[str],
                 'confidence': float,
-                'resolved_question': str  # Question after reference resolution
+                'resolved_question': str,  # Question after reference resolution
+                'validation': ValidationResult,  # Response validation details
+                'insights': Insights,  # Key findings and takeaways
+                'confidence_details': ConfidenceScore  # Detailed confidence breakdown
             }
         """
         response = self._create_empty_response()
@@ -161,9 +176,59 @@ class PipelineOrchestrator:
             )
             response['explanation'] = explanation
 
-            # Step 7: Add suggestions for empty results
+            # Step 7: Validate response quality (Phase 2)
+            validation = await self.response_validator.validate_response(
+                question=question,
+                sql=sql,
+                results=results,
+                explanation=explanation
+            )
+            response['validation'] = validation.to_dict()
+
+            # Add validation warnings if confidence is low
+            if validation.confidence < 0.7:
+                response['warnings'].append(
+                    f"⚠️ {validation.message if hasattr(validation, 'message') else 'Moderate confidence in this answer'}"
+                )
+
+            # Add validation issues as warnings
+            if validation.issues:
+                for issue in validation.issues:
+                    response['warnings'].append(f"⚠️ {issue}")
+
+            # Step 8: Generate insights from results (Phase 2)
+            if results and len(results) > 0:
+                insights = await self.insight_generator.generate_insights(
+                    question=question,
+                    sql=sql,
+                    results=results
+                )
+                response['insights'] = insights.to_dict()
+
+                # Add insight summary to suggestions if available
+                if insights.has_insights() and insights.summary:
+                    response['suggestions'].insert(0, f"💡 {insights.summary}")
+
+            # Step 9: Calculate detailed confidence score (Phase 2)
+            confidence_score = self.confidence_calculator.calculate_confidence(
+                question=question,
+                sql=sql,
+                results=results,
+                validation_score=validation.confidence,
+                context_used=context_used,
+                schema_info=None  # Could pass schema info in future
+            )
+            response['confidence'] = confidence_score.overall
+            response['confidence_details'] = confidence_score.to_dict()
+
+            # Update warnings based on confidence level
+            if confidence_score.level == 'low':
+                if confidence_score.message not in str(response['warnings']):
+                    response['warnings'].append(confidence_score.message)
+
+            # Step 10: Add suggestions for empty results
             if not results or len(results) == 0:
-                response['suggestions'] = self._generate_empty_result_suggestions()
+                response['suggestions'].extend(self._generate_empty_result_suggestions())
 
             response['success'] = True
 
@@ -176,6 +241,9 @@ class PipelineOrchestrator:
                 results=response['results'],
                 metadata={
                     'confidence': response['confidence'],
+                    'confidence_details': response['confidence_details'],
+                    'validation': response['validation'],
+                    'insights': response['insights'],
                     'warnings': response['warnings'],
                     'suggestions': response['suggestions']
                 }
@@ -211,7 +279,10 @@ class PipelineOrchestrator:
             'warnings': [],
             'suggestions': [],
             'confidence': 0.0,
-            'resolved_question': ''  # Question after reference resolution
+            'resolved_question': '',  # Question after reference resolution
+            'validation': None,  # Will be populated by ResponseValidator
+            'insights': None,  # Will be populated by InsightGenerator
+            'confidence_details': None  # Will be populated by ConfidenceCalculator
         }
 
     @staticmethod
