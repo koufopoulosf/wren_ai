@@ -1,7 +1,7 @@
 """
-Wren AI Data Assistant - Streamlit Interface
+Crypto Data Assistant - Streamlit Interface
 
-Modern chat interface for querying data warehouse with natural language.
+Modern chat interface for querying cryptocurrency data with natural language.
 Features:
 - Claude-like clean aesthetics
 - Progressive clarification
@@ -37,8 +37,8 @@ from query_explainer import QueryExplainer
 
 # Page config
 st.set_page_config(
-    page_title="Wren AI Data Assistant",
-    page_icon="🤖",
+    page_title="Crypto Data Assistant",
+    page_icon="₿",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
@@ -326,12 +326,12 @@ class WrenAssistant:
 
 User question: "{question}"
 
-A DATA QUERY asks about information stored in database tables (customers, orders, products, revenue, etc.)
+A DATA QUERY asks about information stored in database tables (tokens, prices, volumes, holdings, transactions, etc.)
 Examples of DATA QUERIES:
-- "What was total revenue last month?"
-- "Show me top customers"
-- "How many orders do we have?"
-- "What's the average order value?"
+- "What was Bitcoin's price last month?"
+- "Show me top tokens by trading volume"
+- "How many active users do we have?"
+- "What's the average daily trading volume?"
 
 A META/SYSTEM QUESTION asks about the AI system itself, its capabilities, or is unrelated to the database.
 Examples of META/SYSTEM QUESTIONS:
@@ -363,16 +363,17 @@ Respond with JSON only:
             # If it's not a data query, generate a helpful response
             if not classification.get('is_data_query', True):
                 # Generate natural language response
-                response_prompt = f"""You are a helpful AI data assistant for an e-commerce analytics database.
+                response_prompt = f"""You are a helpful AI data assistant for a cryptocurrency trading analytics database.
 
 The user asked: "{question}"
 
 This is a question about the system/capabilities, not a data query. Provide a brief, friendly response.
 
 Available data:
-- E-commerce database with customers, orders, products, categories
-- Sample data from January-April 2024
-- Can answer questions about revenue, customers, orders, products, etc.
+- Cryptocurrency database with tokens, prices, volumes, holdings, transactions
+- 2 years of historical OHLCV data (Nov 2023 - Nov 2025)
+- 20 major cryptocurrencies (BTC, ETH, USDT, BNB, SOL, ADA, etc.)
+- Can answer questions about prices, trading volumes, user holdings, revenue, staking, etc.
 
 Keep your response concise (2-3 sentences) and helpful."""
 
@@ -545,7 +546,7 @@ def create_chart(df: pd.DataFrame, unique_id: str = ""):
     # Chart type selection
     chart_type = st.selectbox(
         "Chart Type",
-        ["Bar Chart", "Line Chart", "Scatter Plot", "Pie Chart", "Table"],
+        ["Bar Chart", "Stacked Bar", "Line Chart", "Scatter Plot", "Pie Chart", "Treemap", "Table"],
         key=f"chart_type_{unique_id}"
     )
 
@@ -557,6 +558,23 @@ def create_chart(df: pd.DataFrame, unique_id: str = ""):
         y_col = st.selectbox("Y-axis", numeric_cols, key=f"bar_y_{unique_id}")
 
         fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif chart_type == "Stacked Bar" and len(numeric_cols) >= 1:
+        x_col = st.selectbox("X-axis", all_cols, key=f"stacked_x_{unique_id}")
+        y_col = st.selectbox("Y-axis", numeric_cols, key=f"stacked_y_{unique_id}")
+
+        # Optional: Group/stack by another column
+        categorical_cols = [col for col in all_cols if col not in numeric_cols]
+        if len(categorical_cols) > 1:
+            color_col = st.selectbox("Stack by (optional)", [None] + categorical_cols, key=f"stacked_color_{unique_id}")
+        else:
+            color_col = None
+
+        if color_col:
+            fig = px.bar(df, x=x_col, y=y_col, color=color_col, title=f"{y_col} by {x_col} (stacked by {color_col})", barmode='stack')
+        else:
+            fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}", barmode='stack')
         st.plotly_chart(fig, use_container_width=True)
 
     elif chart_type == "Line Chart" and len(numeric_cols) >= 1:
@@ -579,6 +597,38 @@ def create_chart(df: pd.DataFrame, unique_id: str = ""):
 
         fig = px.pie(df, names=label_col, values=value_col, title=f"Distribution of {value_col}")
         st.plotly_chart(fig, use_container_width=True)
+
+    elif chart_type == "Treemap" and len(all_cols) >= 2:
+        st.info("💡 Treemap works best with hierarchical data (e.g., category → subcategory → value)")
+
+        # Select path columns (hierarchical structure)
+        if len(all_cols) >= 3:
+            path_col1 = st.selectbox("First level (e.g., Category)", all_cols, key=f"treemap_path1_{unique_id}")
+            remaining_cols = [col for col in all_cols if col != path_col1]
+            path_col2 = st.selectbox("Second level (e.g., Subcategory)", remaining_cols, key=f"treemap_path2_{unique_id}")
+            path_cols = [path_col1, path_col2]
+        else:
+            # Single level treemap
+            path_col = st.selectbox("Category", all_cols, key=f"treemap_path_{unique_id}")
+            path_cols = [path_col]
+
+        # Select value column
+        if numeric_cols:
+            value_col = st.selectbox("Values (size)", numeric_cols, key=f"treemap_values_{unique_id}")
+        else:
+            st.warning("⚠️ No numeric columns found. Treemap will use count.")
+            value_col = None
+
+        try:
+            if value_col:
+                fig = px.treemap(df, path=path_cols, values=value_col, title=f"Treemap of {value_col}")
+            else:
+                # Count-based treemap when no numeric column
+                fig = px.treemap(df, path=path_cols, title=f"Treemap of {path_cols[0]}")
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Could not create treemap: {str(e)}")
+            st.dataframe(df, use_container_width=True)
 
     else:
         st.dataframe(df, use_container_width=True)
@@ -624,24 +674,20 @@ def main():
 
     # Auto-initialize on first load
     if not st.session_state.initialized:
-        with st.spinner("🚀 Initializing Wren AI..."):
+        with st.spinner("🚀 Initializing..."):
             try:
                 run_async(st.session_state.assistant.initialize())
                 st.session_state.initialized = True
             except Exception as e:
-                st.error(f"❌ Failed to initialize Wren AI: {str(e)}")
+                st.error(f"❌ Failed to initialize: {str(e)}")
                 st.stop()
 
-    # Header
-    st.title("🤖 Wren AI Data Assistant")
-    st.markdown('<span class="status-badge">✓ Ready</span>', unsafe_allow_html=True)
-
-    # Welcome message and examples (only show if no messages)
-    if len(st.session_state.messages) == 0:
+    # Welcome message and examples (only show if no messages and no current question)
+    if len(st.session_state.messages) == 0 and not st.session_state.get('current_question'):
         st.markdown("""
         <div class="welcome-message">
-            <h2>Ask questions about your data</h2>
-            <p>I can help you explore and analyze your e-commerce data using natural language.</p>
+            <h2>Ask questions about your crypto data</h2>
+            <p>I can help you explore and analyze cryptocurrency prices, trading volumes, holdings, and revenue using natural language.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -650,12 +696,12 @@ def main():
         # Example queries in a grid
         col1, col2 = st.columns(2)
         examples = [
-            "What was total revenue last month?",
-            "Show top 10 customers by orders",
-            "How many active customers do we have?",
-            "What's our average order value?",
-            "Show revenue trends by month",
-            "Which products sell the best?"
+            "What was Bitcoin's highest price in 2024?",
+            "Show top 10 tokens by trading volume",
+            "What's Ethereum's price trend over the last 6 months?",
+            "How much revenue was generated from staking last month?",
+            "Which users have the largest crypto holdings?",
+            "Show me total trading volume by month for the last year"
         ]
 
         for idx, example in enumerate(examples):
@@ -697,9 +743,19 @@ def main():
             'content': question
         })
 
+        # Display user message immediately
+        display_message('user', question, None)
+
+        # Show thinking status below the question
+        thinking_placeholder = st.empty()
+        with thinking_placeholder:
+            st.info("🤔 Thinking...")
+
         # Process question
-        with st.spinner("🤔 Thinking..."):
-            response = run_async(st.session_state.assistant.process_question(question))
+        response = run_async(st.session_state.assistant.process_question(question))
+
+        # Clear thinking message
+        thinking_placeholder.empty()
 
         # Prepare assistant message
         if response['success']:

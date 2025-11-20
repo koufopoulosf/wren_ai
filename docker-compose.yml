@@ -15,9 +15,10 @@ services:
       - ./database/data/02_insert_data.sql:/docker-entrypoint-initdb.d/02_insert_data.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U wren_user -d analytics"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     networks:
       - wren-network
 
