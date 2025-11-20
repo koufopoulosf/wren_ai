@@ -227,13 +227,23 @@ class VectorSearch:
                 )
 
             # Search
-            results = self.qdrant_client.query_points(
+            search_result = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
                 query=query_embedding,
                 limit=limit,
                 query_filter=search_filter,
                 score_threshold=score_threshold
-            ).points
+            )
+
+            # Handle different return types from query_points
+            # In newer versions it returns QueryResponse with .points attribute
+            # In some versions it might return the list directly
+            if hasattr(search_result, 'points'):
+                results = search_result.points
+            elif isinstance(search_result, list):
+                results = search_result
+            else:
+                results = search_result
 
             # Format results
             matches = []
