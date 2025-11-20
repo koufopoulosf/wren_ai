@@ -1,7 +1,7 @@
 """
-Wren AI Data Assistant - Streamlit Interface
+Crypto Data Assistant - Streamlit Interface
 
-Modern chat interface for querying data warehouse with natural language.
+Modern chat interface for querying cryptocurrency data with natural language.
 Features:
 - Claude-like clean aesthetics
 - Progressive clarification
@@ -37,8 +37,8 @@ from query_explainer import QueryExplainer
 
 # Page config
 st.set_page_config(
-    page_title="Wren AI Data Assistant",
-    page_icon="🤖",
+    page_title="Crypto Data Assistant",
+    page_icon="₿",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
@@ -674,24 +674,20 @@ def main():
 
     # Auto-initialize on first load
     if not st.session_state.initialized:
-        with st.spinner("🚀 Initializing Wren AI..."):
+        with st.spinner("🚀 Initializing..."):
             try:
                 run_async(st.session_state.assistant.initialize())
                 st.session_state.initialized = True
             except Exception as e:
-                st.error(f"❌ Failed to initialize Wren AI: {str(e)}")
+                st.error(f"❌ Failed to initialize: {str(e)}")
                 st.stop()
 
-    # Header
-    st.title("🤖 Wren AI Data Assistant")
-    st.markdown('<span class="status-badge">✓ Ready</span>', unsafe_allow_html=True)
-
-    # Welcome message and examples (only show if no messages)
-    if len(st.session_state.messages) == 0:
+    # Welcome message and examples (only show if no messages and no current question)
+    if len(st.session_state.messages) == 0 and not st.session_state.get('current_question'):
         st.markdown("""
         <div class="welcome-message">
-            <h2>Ask questions about your data</h2>
-            <p>I can help you explore and analyze your e-commerce data using natural language.</p>
+            <h2>Ask questions about your crypto data</h2>
+            <p>I can help you explore and analyze cryptocurrency prices, trading volumes, holdings, and revenue using natural language.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -747,9 +743,19 @@ def main():
             'content': question
         })
 
+        # Display user message immediately
+        display_message('user', question, None)
+
+        # Show thinking status below the question
+        thinking_placeholder = st.empty()
+        with thinking_placeholder:
+            st.info("🤔 Thinking...")
+
         # Process question
-        with st.spinner("🤔 Thinking..."):
-            response = run_async(st.session_state.assistant.process_question(question))
+        response = run_async(st.session_state.assistant.process_question(question))
+
+        # Clear thinking message
+        thinking_placeholder.empty()
 
         # Prepare assistant message
         if response['success']:
