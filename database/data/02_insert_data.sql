@@ -584,8 +584,8 @@ BEGIN
         -- Random warehouse
         wh_id := (random() * 4 + 1)::INTEGER;
 
-        -- Order date spread across 2023-2024
-        order_dt := '2023-01-01'::TIMESTAMP + (random() * 700 || ' days')::INTERVAL + (random() * 86400 || ' seconds')::INTERVAL;
+        -- Order date spread across last ~2 years up to current date
+        order_dt := (CURRENT_DATE - INTERVAL '700 days') + (random() * 700 || ' days')::INTERVAL + (random() * 86400 || ' seconds')::INTERVAL;
 
         -- Random total amount
         total := (50 + random() * 2000)::DECIMAL(10,2);
@@ -656,7 +656,7 @@ BEGIN
             'Region ' || ((cust_id % 5) + 1),
             order_dt + '5 days'::INTERVAL,
             CASE
-                WHEN random() < 0.85 THEN order_dt + (4 + random() * 3)::INTEGER || ' days'
+                WHEN random() < 0.85 THEN order_dt + (((4 + random() * 3)::INTEGER)::TEXT || ' days')::INTERVAL
                 ELSE NULL
             END
         );
@@ -860,7 +860,7 @@ SELECT
     (random() * 99 + 1)::INTEGER,
     (random() * 49 + 1)::INTEGER,
     (random() * 799 + 1)::INTEGER,
-    (random() * 4 + 1)::INTEGER + 1, -- 1-5 stars
+    (random() * 5)::INTEGER + 1, -- 1-5 stars
     CASE (random() * 5)::INTEGER
         WHEN 0 THEN 'Great product!'
         WHEN 1 THEN 'Excellent quality'
