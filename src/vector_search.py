@@ -227,13 +227,13 @@ class VectorSearch:
                 )
 
             # Search
-            results = self.qdrant_client.search(
+            results = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_embedding,
+                query=query_embedding,
                 limit=limit,
                 query_filter=search_filter,
                 score_threshold=score_threshold
-            )
+            ).points
 
             # Format results
             matches = []
