@@ -4,8 +4,6 @@ Custom exception hierarchy for Data Assistant.
 This module provides a structured exception hierarchy to enable
 better error handling and more precise error catching throughout
 the application.
-
-Note: Renamed from WrenAI to DataAssistant to avoid confusion.
 """
 
 

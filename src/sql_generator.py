@@ -3,7 +3,7 @@ Simplified SQL generation using Claude.
 
 Clean architecture:
 - Directly calls Claude for SQL generation with full DDL
-- No external Wren AI Service dependency
+- No external dependencies beyond Claude API
 - No vector search, embeddings, or semantic matching
 - Claude's excellent semantic understanding handles schema reasoning
 - Supports both PostgreSQL and Redshift
@@ -52,7 +52,7 @@ class SQLGenerator:
         self.db_config = db_config
         self.model = model
         self.db_type = db_type.lower()
-        self._db_conn = None
+        self._db_pool = None
 
         # Schema caching
         self._schema_cache = None
@@ -62,24 +62,26 @@ class SQLGenerator:
         logger.info(f"SQLGenerator initialized with model: {model}, db_type: {self.db_type}")
 
     async def connect_db(self):
-        """Connect to database for SQL execution."""
-        if not self._db_conn:
-            self._db_conn = await asyncpg.connect(
+        """Create database connection pool for SQL execution."""
+        if not self._db_pool:
+            self._db_pool = await asyncpg.create_pool(
                 host=self.db_config.get("host", "localhost"),
                 port=int(self.db_config.get("port", 5432)),
                 database=self.db_config.get("database"),
                 user=self.db_config.get("user"),
                 password=self.db_config.get("password"),
-                ssl=self.db_config.get("ssl", "disable")
+                ssl=self.db_config.get("ssl", "disable"),
+                min_size=2,  # Minimum pool size
+                max_size=10  # Maximum pool size
             )
-            logger.info("Connected to database")
+            logger.info("Database connection pool created (min=2, max=10)")
 
     async def disconnect_db(self):
-        """Disconnect from database."""
-        if self._db_conn:
-            await self._db_conn.close()
-            self._db_conn = None
-            logger.info("Disconnected from database")
+        """Close database connection pool."""
+        if self._db_pool:
+            await self._db_pool.close()
+            self._db_pool = None
+            logger.info("Database connection pool closed")
 
     async def get_table_names(self) -> List[str]:
         """
@@ -91,17 +93,18 @@ class SQLGenerator:
         Raises:
             DatabaseError: If database query fails
         """
-        if not self._db_conn:
-            raise DatabaseError("Database not connected. Call connect_db() first.")
+        if not self._db_pool:
+            raise DatabaseError("Database pool not initialized. Call connect_db() first.")
 
         try:
-            tables_result = await self._db_conn.fetch("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                ORDER BY table_name
-            """)
-            return [row["table_name"] for row in tables_result]
+            async with self._db_pool.acquire() as conn:
+                tables_result = await conn.fetch("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    ORDER BY table_name
+                """)
+                return [row["table_name"] for row in tables_result]
         except Exception as e:
             logger.error(f"Failed to fetch table names: {e}", exc_info=True)
             raise DatabaseError(f"Failed to fetch table names: {str(e)}") from e
@@ -138,58 +141,59 @@ class SQLGenerator:
         ORDER BY table_name
         """
 
-        tables = await self._db_conn.fetch(tables_query)
-        ddl_parts = []
+        async with self._db_pool.acquire() as conn:
+            tables = await conn.fetch(tables_query)
+            ddl_parts = []
 
-        for table_row in tables:
-            table_name = table_row["table_name"]
+            for table_row in tables:
+                table_name = table_row["table_name"]
 
-            # Get columns with comments
-            columns_query = """
-            SELECT
-                c.column_name,
-                c.data_type,
-                c.is_nullable,
-                c.column_default,
-                pgd.description as column_comment
-            FROM information_schema.columns c
-            LEFT JOIN pg_catalog.pg_statio_all_tables st
-                ON c.table_schema = st.schemaname
-                AND c.table_name = st.relname
-            LEFT JOIN pg_catalog.pg_description pgd
-                ON pgd.objoid = st.relid
-                AND pgd.objsubid = c.ordinal_position
-            WHERE c.table_schema = 'public'
-              AND c.table_name = $1
-            ORDER BY c.ordinal_position
-            """
+                # Get columns with comments
+                columns_query = """
+                SELECT
+                    c.column_name,
+                    c.data_type,
+                    c.is_nullable,
+                    c.column_default,
+                    pgd.description as column_comment
+                FROM information_schema.columns c
+                LEFT JOIN pg_catalog.pg_statio_all_tables st
+                    ON c.table_schema = st.schemaname
+                    AND c.table_name = st.relname
+                LEFT JOIN pg_catalog.pg_description pgd
+                    ON pgd.objoid = st.relid
+                    AND pgd.objsubid = c.ordinal_position
+                WHERE c.table_schema = 'public'
+                  AND c.table_name = $1
+                ORDER BY c.ordinal_position
+                """
 
-            columns = await self._db_conn.fetch(columns_query, table_name)
+                columns = await conn.fetch(columns_query, table_name)
 
-            # Build CREATE TABLE with column definitions
-            col_defs = []
-            comments = []
+                # Build CREATE TABLE with column definitions
+                col_defs = []
+                comments = []
 
-            for col in columns:
-                nullable = "" if col["is_nullable"] == "YES" else " NOT NULL"
-                default = f" DEFAULT {col['column_default']}" if col["column_default"] else ""
-                col_defs.append(
-                    f"  {col['column_name']} {col['data_type']}{nullable}{default}"
-                )
+                for col in columns:
+                    nullable = "" if col["is_nullable"] == "YES" else " NOT NULL"
+                    default = f" DEFAULT {col['column_default']}" if col["column_default"] else ""
+                    col_defs.append(
+                        f"  {col['column_name']} {col['data_type']}{nullable}{default}"
+                    )
 
-                # Add column comment if it exists
-                if col.get("column_comment"):
-                    comment_sql = f"COMMENT ON COLUMN {table_name}.{col['column_name']} IS '{col['column_comment']}';"
-                    comments.append(comment_sql)
+                    # Add column comment if it exists
+                    if col.get("column_comment"):
+                        comment_sql = f"COMMENT ON COLUMN {table_name}.{col['column_name']} IS '{col['column_comment']}';"
+                        comments.append(comment_sql)
 
-            # Build complete DDL for table
-            ddl = f"CREATE TABLE {table_name} (\n" + ",\n".join(col_defs) + "\n);"
+                # Build complete DDL for table
+                ddl = f"CREATE TABLE {table_name} (\n" + ",\n".join(col_defs) + "\n);"
 
-            # Add comments after table definition
-            if comments:
-                ddl += "\n" + "\n".join(comments)
+                # Add comments after table definition
+                if comments:
+                    ddl += "\n" + "\n".join(comments)
 
-            ddl_parts.append(ddl)
+                ddl_parts.append(ddl)
 
         schema_ddl = "\n\n".join(ddl_parts)
 
@@ -318,13 +322,14 @@ SQL Query:"""
             await self.connect_db()
 
             logger.info(f"Executing SQL: {sql[:100]}...")
-            rows = await self._db_conn.fetch(sql)
+            async with self._db_pool.acquire() as conn:
+                rows = await conn.fetch(sql)
 
-            # Convert to list of dicts
-            results = [dict(row) for row in rows]
+                # Convert to list of dicts
+                results = [dict(row) for row in rows]
 
-            logger.info(f"Query returned {len(results)} rows")
-            return results
+                logger.info(f"Query returned {len(results)} rows")
+                return results
 
         except Exception as e:
             logger.error(f"Error executing SQL: {e}")

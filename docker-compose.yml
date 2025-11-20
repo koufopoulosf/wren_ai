@@ -2,11 +2,11 @@ services:
   # PostgreSQL Database (replaces Redshift for testing)
   postgres:
     image: postgres:15-alpine
-    container_name: wren-postgres
+    container_name: data-assistant-postgres
     environment:
       POSTGRES_DB: analytics
-      POSTGRES_USER: wren_user
-      POSTGRES_PASSWORD: wren_password
+      POSTGRES_USER: data_assistant_user
+      POSTGRES_PASSWORD: data_assistant_password
     ports:
       - "5432:5432"
     volumes:
@@ -14,20 +14,20 @@ services:
       - ./database/schema/01_create_schema.sql:/docker-entrypoint-initdb.d/01_create_schema.sql
       - ./database/data/02_insert_data.sql:/docker-entrypoint-initdb.d/02_insert_data.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wren_user -d analytics"]
+      test: ["CMD-SHELL", "pg_isready -U data_assistant_user -d analytics"]
       interval: 5s
       timeout: 10s
       retries: 10
       start_period: 60s
     networks:
-      - wren-network
+      - data-assistant-network
 
   # Streamlit Data Assistant
   streamlit-app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: wren-streamlit-app
+    container_name: data-assistant-app
     ports:
       - "8501:8501"
     environment:
@@ -36,8 +36,8 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: analytics
-      DB_USER: wren_user
-      DB_PASSWORD: wren_password
+      DB_USER: data_assistant_user
+      DB_PASSWORD: data_assistant_password
       DB_SSL: "false"
       # Anthropic API (for SQL generation)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
@@ -58,10 +58,10 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     networks:
-      - wren-network
+      - data-assistant-network
 
 networks:
-  wren-network:
+  data-assistant-network:
     driver: bridge
 
 volumes:
