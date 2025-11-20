@@ -283,14 +283,9 @@ class WrenAssistant:
         # Load basic schema info for display
         await self.sql_generator.connect_db()
         try:
-            # Get table names and basic structure
-            tables_result = await self.sql_generator._db_conn.fetch("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                ORDER BY table_name
-            """)
-            self.schema_info["tables"] = [{"name": row["table_name"]} for row in tables_result]
+            # Get table names using public method (not accessing private attributes)
+            table_names = await self.sql_generator.get_table_names()
+            self.schema_info["tables"] = [{"name": name} for name in table_names]
             logger.info(f"✅ Loaded schema: {len(self.schema_info['tables'])} tables")
         except Exception as e:
             logger.warning(f"Could not load schema info: {e}")

@@ -81,6 +81,31 @@ class SQLGenerator:
             self._db_conn = None
             logger.info("Disconnected from database")
 
+    async def get_table_names(self) -> List[str]:
+        """
+        Get list of table names from the database schema.
+
+        Returns:
+            List of table name strings
+
+        Raises:
+            DatabaseError: If database query fails
+        """
+        if not self._db_conn:
+            raise DatabaseError("Database not connected. Call connect_db() first.")
+
+        try:
+            tables_result = await self._db_conn.fetch("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """)
+            return [row["table_name"] for row in tables_result]
+        except Exception as e:
+            logger.error(f"Failed to fetch table names: {e}", exc_info=True)
+            raise DatabaseError(f"Failed to fetch table names: {str(e)}") from e
+
     async def get_schema_ddl(self, force_refresh: bool = False) -> str:
         """
         Get schema as DDL (CREATE TABLE statements) with caching.
