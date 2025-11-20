@@ -394,9 +394,13 @@ Keep your response concise (2-3 sentences) and helpful."""
             logger.warning(f"Question classification failed: {e}, treating as data query")
             return {'is_data_query': True}
 
-    async def process_question(self, question: str) -> Dict[str, Any]:
+    async def process_question(self, question: str, conversation_history: list = None) -> Dict[str, Any]:
         """
-        Process user question and return results.
+        Process user question and return results with conversation context.
+
+        Args:
+            question: User's natural language question
+            conversation_history: List of previous messages for context (optional)
 
         Returns:
             {
@@ -429,8 +433,8 @@ Keep your response concise (2-3 sentences) and helpful."""
                 response['explanation'] = classification.get('response', '')
                 return response
 
-            # Generate SQL using vector search + Claude
-            result = await self.sql_generator.ask(question)
+            # Generate SQL using vector search + Claude with conversation context
+            result = await self.sql_generator.ask(question, conversation_history=conversation_history)
 
             sql = result.get('sql', '')
             results = result.get('results', [])
@@ -808,8 +812,11 @@ def main():
         with thinking_placeholder:
             st.info("🤔 Thinking...")
 
-        # Process question
-        response = run_async(st.session_state.assistant.process_question(question))
+        # Get conversation history (exclude the current question, which was just added)
+        conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
+
+        # Process question with conversation context
+        response = run_async(st.session_state.assistant.process_question(question, conversation_history=conversation_history))
 
         # Clear thinking message
         thinking_placeholder.empty()

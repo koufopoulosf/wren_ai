@@ -121,14 +121,16 @@ class SQLGenerator:
     async def generate_sql(
         self,
         question: str,
-        context_limit: int = 5
+        context_limit: int = 5,
+        conversation_history: list = None
     ) -> Dict[str, Any]:
         """
-        Generate SQL from natural language question.
+        Generate SQL from natural language question with conversation context.
 
         Args:
             question: User's natural language question
             context_limit: Max number of schema entities to include
+            conversation_history: List of previous messages for context (optional)
 
         Returns:
             Dict with keys: sql, explanation, context_used
@@ -154,14 +156,36 @@ class SQLGenerator:
             # 3. Get full schema DDL
             schema_ddl = await self.get_schema_ddl()
 
-            # 4. Build Claude prompt
+            # 4. Build conversation context (if available)
+            conversation_context = ""
+            if conversation_history and len(conversation_history) > 0:
+                # Include last 5 messages for context (to avoid token limits)
+                recent_history = conversation_history[-5:]
+                history_parts = []
+                for msg in recent_history:
+                    role = msg.get('role', 'user')
+                    content = msg.get('content', '')
+                    # Truncate long content to avoid bloat
+                    if len(content) > 300:
+                        content = content[:300] + "..."
+                    history_parts.append(f"{role.capitalize()}: {content}")
+
+                conversation_context = f"""
+
+## Recent Conversation History
+{chr(10).join(history_parts)}
+
+Note: The user's current question may reference this conversation history. Use it to understand context like follow-up questions (e.g., "yes please proceed", "show me more", "what about X?").
+"""
+
+            # 5. Build Claude prompt
             prompt = f"""You are a SQL expert. Generate a PostgreSQL query to answer the user's question.
 
 ## Database Schema (DDL)
 {schema_ddl}
 
 ## Relevant Schema Context (from semantic search)
-{schema_context}
+{schema_context}{conversation_context}
 
 ## User Question
 {question}
@@ -175,10 +199,12 @@ class SQLGenerator:
 - Do not use semicolons to separate multiple statements
 - Generate exactly ONE SELECT/INSERT/UPDATE/DELETE statement
 - Make sure the query is valid and executable
+- If the question references the conversation history (like "yes", "proceed", "show more"), interpret it in context
+- If the question is too vague even with history, return the text "AMBIGUOUS_QUERY" instead of SQL
 
 SQL Query:"""
 
-            # 5. Call Claude
+            # 6. Call Claude
             logger.info("Calling Claude to generate SQL...")
             loop = asyncio.get_event_loop()
             message = await loop.run_in_executor(
@@ -198,6 +224,12 @@ SQL Query:"""
             # Clean up SQL (remove markdown if present)
             if sql.startswith("```"):
                 sql = "\n".join(sql.split("\n")[1:-1])
+                sql = sql.strip()
+
+            # Check if Claude indicated the query is ambiguous
+            if "AMBIGUOUS_QUERY" in sql:
+                logger.warning("Claude detected ambiguous query")
+                raise ValueError("Your question is too vague. Please be more specific or provide more details about what you want to know.")
 
             # Handle multiple statements: take only the last non-empty statement
             # This prevents "cannot insert multiple commands into a prepared statement" error
@@ -245,19 +277,23 @@ SQL Query:"""
             logger.error(f"Error executing SQL: {e}")
             raise
 
-    async def ask(self, question: str) -> Dict[str, Any]:
+    async def ask(self, question: str, conversation_history: list = None) -> Dict[str, Any]:
         """
         Full pipeline: generate SQL from question and execute it.
 
         Args:
             question: User's natural language question
+            conversation_history: List of previous messages for context (optional)
 
         Returns:
             Dict with keys: question, sql, results, explanation
         """
         try:
-            # Generate SQL
-            generation_result = await self.generate_sql(question)
+            # Generate SQL with conversation context
+            generation_result = await self.generate_sql(
+                question,
+                conversation_history=conversation_history
+            )
             sql = generation_result["sql"]
 
             # Execute SQL
