@@ -14,6 +14,9 @@ from .config import Config
 from .sql_generator import SQLGenerator
 from .query_explainer import QueryExplainer
 from .result_validator import ResultValidator
+from .question_classifier import QuestionClassifier
+from .response_generator import ResponseGenerator
+from .pipeline_orchestrator import PipelineOrchestrator
 
 # Utilities
 from .llm_utils import LLMUtils
@@ -26,6 +29,9 @@ __all__ = [
     "SQLGenerator",
     "QueryExplainer",
     "ResultValidator",
+    "QuestionClassifier",
+    "ResponseGenerator",
+    "PipelineOrchestrator",
     # Utilities
     "LLMUtils",
 ]
