@@ -545,7 +545,7 @@ def create_chart(df: pd.DataFrame, unique_id: str = ""):
     # Chart type selection
     chart_type = st.selectbox(
         "Chart Type",
-        ["Bar Chart", "Line Chart", "Scatter Plot", "Pie Chart", "Table"],
+        ["Bar Chart", "Stacked Bar", "Line Chart", "Scatter Plot", "Pie Chart", "Treemap", "Table"],
         key=f"chart_type_{unique_id}"
     )
 
@@ -557,6 +557,23 @@ def create_chart(df: pd.DataFrame, unique_id: str = ""):
         y_col = st.selectbox("Y-axis", numeric_cols, key=f"bar_y_{unique_id}")
 
         fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif chart_type == "Stacked Bar" and len(numeric_cols) >= 1:
+        x_col = st.selectbox("X-axis", all_cols, key=f"stacked_x_{unique_id}")
+        y_col = st.selectbox("Y-axis", numeric_cols, key=f"stacked_y_{unique_id}")
+
+        # Optional: Group/stack by another column
+        categorical_cols = [col for col in all_cols if col not in numeric_cols]
+        if len(categorical_cols) > 1:
+            color_col = st.selectbox("Stack by (optional)", [None] + categorical_cols, key=f"stacked_color_{unique_id}")
+        else:
+            color_col = None
+
+        if color_col:
+            fig = px.bar(df, x=x_col, y=y_col, color=color_col, title=f"{y_col} by {x_col} (stacked by {color_col})", barmode='stack')
+        else:
+            fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}", barmode='stack')
         st.plotly_chart(fig, use_container_width=True)
 
     elif chart_type == "Line Chart" and len(numeric_cols) >= 1:
@@ -579,6 +596,38 @@ def create_chart(df: pd.DataFrame, unique_id: str = ""):
 
         fig = px.pie(df, names=label_col, values=value_col, title=f"Distribution of {value_col}")
         st.plotly_chart(fig, use_container_width=True)
+
+    elif chart_type == "Treemap" and len(all_cols) >= 2:
+        st.info("💡 Treemap works best with hierarchical data (e.g., category → subcategory → value)")
+
+        # Select path columns (hierarchical structure)
+        if len(all_cols) >= 3:
+            path_col1 = st.selectbox("First level (e.g., Category)", all_cols, key=f"treemap_path1_{unique_id}")
+            remaining_cols = [col for col in all_cols if col != path_col1]
+            path_col2 = st.selectbox("Second level (e.g., Subcategory)", remaining_cols, key=f"treemap_path2_{unique_id}")
+            path_cols = [path_col1, path_col2]
+        else:
+            # Single level treemap
+            path_col = st.selectbox("Category", all_cols, key=f"treemap_path_{unique_id}")
+            path_cols = [path_col]
+
+        # Select value column
+        if numeric_cols:
+            value_col = st.selectbox("Values (size)", numeric_cols, key=f"treemap_values_{unique_id}")
+        else:
+            st.warning("⚠️ No numeric columns found. Treemap will use count.")
+            value_col = None
+
+        try:
+            if value_col:
+                fig = px.treemap(df, path=path_cols, values=value_col, title=f"Treemap of {value_col}")
+            else:
+                # Count-based treemap when no numeric column
+                fig = px.treemap(df, path=path_cols, title=f"Treemap of {path_cols[0]}")
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Could not create treemap: {str(e)}")
+            st.dataframe(df, use_container_width=True)
 
     else:
         st.dataframe(df, use_container_width=True)
