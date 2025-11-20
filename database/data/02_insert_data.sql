@@ -1,1086 +1,410 @@
--- E-Commerce Analytics Database - COMPREHENSIVE TEST DATA
--- Extensive dataset with 1000+ records for complex analytical queries
--- Includes data for all 23 tables with realistic relationships
+-- Cryptocurrency Database - Seed Data
+-- Comprehensive test data for crypto trading platform
+-- Includes realistic OHLCV data, user holdings, transactions, and more
 
 -- =====================================================
--- DEPARTMENTS & EMPLOYEES
+-- 1. BLOCKCHAINS
 -- =====================================================
 
--- Insert Departments
-INSERT INTO departments (department_name, description, budget) VALUES
-('Sales', 'Sales and customer acquisition', 500000.00),
-('Marketing', 'Marketing and promotions', 300000.00),
-('Customer Service', 'Customer support and relations', 250000.00),
-('Operations', 'Warehouse and logistics', 400000.00),
-('IT', 'Information technology and systems', 350000.00),
-('Finance', 'Financial planning and accounting', 200000.00),
-('HR', 'Human resources', 180000.00);
-
--- Insert Employees (50 employees)
-INSERT INTO employees (employee_name, email, phone, department_id, position, salary, hire_date, birth_date, manager_id, performance_rating, commission_rate) VALUES
--- Sales Department
-('James Anderson', 'j.anderson@company.com', '+1-555-1001', 1, 'Sales Director', 95000.00, '2020-01-15', '1985-03-20', NULL, 4.5, 0.0500),
-('Sarah Mitchell', 's.mitchell@company.com', '+1-555-1002', 1, 'Senior Sales Rep', 75000.00, '2020-06-01', '1988-07-12', 1, 4.3, 0.0350),
-('Michael Chen', 'm.chen@company.com', '+1-555-1003', 1, 'Sales Representative', 65000.00, '2021-03-10', '1990-11-25', 1, 4.2, 0.0300),
-('Emma Thompson', 'e.thompson@company.com', '+1-555-1004', 1, 'Sales Representative', 62000.00, '2021-08-15', '1992-05-08', 1, 4.4, 0.0300),
-('David Rodriguez', 'd.rodriguez@company.com', '+1-555-1005', 1, 'Sales Representative', 68000.00, '2020-11-20', '1987-09-14', 1, 4.1, 0.0300),
-('Lisa Wong', 'l.wong@company.com', '+1-555-1006', 1, 'Junior Sales Rep', 55000.00, '2022-02-01', '1994-12-30', 2, 3.9, 0.0250),
-('Robert Johnson', 'r.johnson@company.com', '+1-555-1007', 1, 'Junior Sales Rep', 53000.00, '2022-05-15', '1995-04-18', 2, 3.8, 0.0250),
-
--- Marketing Department
-('Jennifer Davis', 'j.davis@company.com', '+1-555-2001', 2, 'Marketing Director', 92000.00, '2019-09-01', '1984-06-22', NULL, 4.6, NULL),
-('Kevin Brown', 'k.brown@company.com', '+1-555-2002', 2, 'Marketing Manager', 78000.00, '2020-03-15', '1986-10-05', 8, 4.4, NULL),
-('Amanda Lee', 'a.lee@company.com', '+1-555-2003', 2, 'Content Specialist', 62000.00, '2021-01-20', '1991-08-17', 9, 4.2, NULL),
-('Chris Martinez', 'c.martinez@company.com', '+1-555-2004', 2, 'Social Media Manager', 65000.00, '2021-06-10', '1993-02-28', 9, 4.3, NULL),
-
--- Customer Service Department
-('Patricia Wilson', 'p.wilson@company.com', '+1-555-3001', 3, 'CS Director', 85000.00, '2019-12-01', '1983-11-15', NULL, 4.5, NULL),
-('Thomas Garcia', 't.garcia@company.com', '+1-555-3002', 3, 'CS Manager', 70000.00, '2020-07-01', '1987-04-09', 12, 4.3, NULL),
-('Maria Rodriguez', 'm.rodriguez@company.com', '+1-555-3003', 3, 'CS Representative', 52000.00, '2021-02-15', '1992-09-23', 13, 4.2, NULL),
-('John Smith', 'j.smith@company.com', '+1-555-3004', 3, 'CS Representative', 51000.00, '2021-04-20', '1993-07-11', 13, 4.1, NULL),
-('Emily Johnson', 'e.johnson@company.com', '+1-555-3005', 3, 'CS Representative', 53000.00, '2020-10-05', '1990-01-30', 13, 4.4, NULL),
-('Daniel Kim', 'd.kim@company.com', '+1-555-3006', 3, 'CS Representative', 52000.00, '2022-01-10', '1994-06-14', 13, 4.0, NULL),
-
--- Operations Department
-('Richard Taylor', 'r.taylor@company.com', '+1-555-4001', 4, 'Operations Director', 98000.00, '2018-05-01', '1982-08-25', NULL, 4.7, NULL),
-('Susan Anderson', 's.anderson@company.com', '+1-555-4002', 4, 'Warehouse Manager', 72000.00, '2019-08-15', '1985-12-03', 18, 4.5, NULL),
-('Mark Thompson', 'm.thompson@company.com', '+1-555-4003', 4, 'Warehouse Manager', 71000.00, '2019-11-20', '1986-05-19', 18, 4.4, NULL),
-('Jessica White', 'j.white@company.com', '+1-555-4004', 4, 'Warehouse Manager', 70000.00, '2020-02-10', '1988-03-07', 18, 4.3, NULL),
-('Brian Harris', 'b.harris@company.com', '+1-555-4005', 4, 'Logistics Coordinator', 58000.00, '2020-09-01', '1989-11-12', 18, 4.2, NULL),
-('Michelle Clark', 'm.clark@company.com', '+1-555-4006', 4, 'Inventory Specialist', 54000.00, '2021-03-15', '1991-07-28', 19, 4.1, NULL),
-
--- IT Department
-('Andrew Lewis', 'a.lewis@company.com', '+1-555-5001', 5, 'IT Director', 105000.00, '2018-01-10', '1981-04-16', NULL, 4.8, NULL),
-('Rachel Walker', 'r.walker@company.com', '+1-555-5002', 5, 'Senior Developer', 88000.00, '2019-03-20', '1986-09-22', 24, 4.6, NULL),
-('Steven Hall', 's.hall@company.com', '+1-555-5003', 5, 'Database Admin', 82000.00, '2019-07-15', '1987-12-05', 24, 4.5, NULL),
-('Angela Allen', 'a.allen@company.com', '+1-555-5004', 5, 'Systems Analyst', 76000.00, '2020-04-01', '1989-06-18', 24, 4.4, NULL),
-
--- Finance Department
-('William Young', 'w.young@company.com', '+1-555-6001', 6, 'Finance Director', 110000.00, '2017-09-01', '1980-02-28', NULL, 4.9, NULL),
-('Karen King', 'k.king@company.com', '+1-555-6002', 6, 'Senior Accountant', 75000.00, '2019-01-15', '1985-10-14', 28, 4.5, NULL),
-('George Wright', 'g.wright@company.com', '+1-555-6003', 6, 'Financial Analyst', 68000.00, '2020-06-10', '1988-08-21', 28, 4.3, NULL),
-
--- HR Department
-('Barbara Scott', 'b.scott@company.com', '+1-555-7001', 7, 'HR Director', 95000.00, '2018-03-01', '1983-05-09', NULL, 4.6, NULL),
-('Charles Green', 'c.green@company.com', '+1-555-7002', 7, 'HR Manager', 72000.00, '2019-10-15', '1986-11-27', 31, 4.4, NULL),
-('Nancy Adams', 'n.adams@company.com', '+1-555-7003', 7, 'HR Specialist', 58000.00, '2020-12-01', '1990-03-15', 32, 4.2, NULL);
-
--- Update department managers
-UPDATE departments SET manager_id = 1 WHERE department_id = 1;
-UPDATE departments SET manager_id = 8 WHERE department_id = 2;
-UPDATE departments SET manager_id = 12 WHERE department_id = 3;
-UPDATE departments SET manager_id = 18 WHERE department_id = 4;
-UPDATE departments SET manager_id = 24 WHERE department_id = 5;
-UPDATE departments SET manager_id = 28 WHERE department_id = 6;
-UPDATE departments SET manager_id = 31 WHERE department_id = 7;
+INSERT INTO blockchains (name, symbol, chain_id, consensus_mechanism, block_time_seconds, native_token, status, launched_date) VALUES
+('Ethereum', 'ETH', 1, 'PoS', 12, 'ETH', 'active', '2015-07-30'),
+('Bitcoin', 'BTC', NULL, 'PoW', 600, 'BTC', 'active', '2009-01-03'),
+('Binance Smart Chain', 'BSC', 56, 'PoSA', 3, 'BNB', 'active', '2020-09-01'),
+('Solana', 'SOL', NULL, 'PoH', 1, 'SOL', 'active', '2020-03-16'),
+('Polygon', 'MATIC', 137, 'PoS', 2, 'MATIC', 'active', '2020-05-30'),
+('Avalanche', 'AVAX', 43114, 'PoS', 2, 'AVAX', 'active', '2020-09-21'),
+('Cardano', 'ADA', NULL, 'PoS', 20, 'ADA', 'active', '2017-09-29'),
+('Polkadot', 'DOT', NULL, 'NPoS', 6, 'DOT', 'active', '2020-05-26'),
+('Arbitrum', 'ARB', 42161, 'PoS', 1, 'ETH', 'active', '2021-08-31'),
+('Optimism', 'OP', 10, 'PoS', 2, 'ETH', 'active', '2021-12-16');
 
 -- =====================================================
--- WAREHOUSES
+-- 2. USERS
 -- =====================================================
 
-INSERT INTO warehouses (warehouse_name, country, region, city, address, capacity, manager_id, operating_cost) VALUES
-('Los Angeles Distribution Center', 'USA', 'West', 'Los Angeles', '1234 Commerce Blvd, Los Angeles, CA 90001', 100000, 19, 45000.00),
-('New York Fulfillment Center', 'USA', 'East', 'New York', '5678 Industrial Ave, Brooklyn, NY 11201', 85000, 20, 52000.00),
-('Chicago Logistics Hub', 'USA', 'Central', 'Chicago', '910 Warehouse Dr, Chicago, IL 60601', 95000, 21, 42000.00),
-('London Distribution Center', 'UK', 'South', 'London', '42 Commerce Park, London E14 5AB', 75000, 19, 38000.00),
-('Toronto Fulfillment Center', 'Canada', 'Ontario', 'Toronto', '88 Distribution Way, Toronto, ON M5H 2N2', 70000, 20, 35000.00);
+INSERT INTO users (username, email, kyc_status, account_tier, country_code, registration_date, last_login, total_trades, total_volume_usd) VALUES
+('crypto_whale_2024', 'whale@cryptoemail.com', 'verified', 'institutional', 'US', '2023-01-15 10:30:00', '2025-11-20 08:45:00', 1523, 15000000.00),
+('hodl_master', 'hodler@cryptoemail.com', 'verified', 'premium', 'UK', '2023-03-22 14:20:00', '2025-11-19 22:30:00', 342, 890000.00),
+('defi_trader_pro', 'defi@cryptoemail.com', 'verified', 'premium', 'SG', '2023-05-10 09:15:00', '2025-11-20 06:15:00', 892, 3500000.00),
+('btc_maximalist', 'btc@cryptoemail.com', 'verified', 'basic', 'CA', '2023-07-05 16:45:00', '2025-11-18 12:00:00', 156, 250000.00),
+('eth_enthusiast', 'eth@cryptoemail.com', 'verified', 'premium', 'DE', '2023-08-12 11:00:00', '2025-11-20 09:30:00', 678, 1800000.00),
+('altcoin_hunter', 'altcoins@cryptoemail.com', 'verified', 'basic', 'AU', '2023-09-18 13:30:00', '2025-11-19 15:45:00', 234, 120000.00),
+('day_trader_99', 'daytrader@cryptoemail.com', 'verified', 'premium', 'JP', '2023-10-25 08:00:00', '2025-11-20 10:00:00', 2145, 5600000.00),
+('staking_rewards', 'staker@cryptoemail.com', 'verified', 'basic', 'FR', '2023-11-30 17:20:00', '2025-11-17 20:00:00', 89, 67000.00),
+('nft_collector_pro', 'nfts@cryptoemail.com', 'verified', 'premium', 'AE', '2024-01-08 10:45:00', '2025-11-19 14:30:00', 445, 980000.00),
+('yield_farmer_420', 'yieldfarm@cryptoemail.com', 'verified', 'basic', 'NL', '2024-02-14 12:00:00', '2025-11-20 07:00:00', 567, 450000.00),
+('crypto_newbie', 'newbie@cryptoemail.com', 'pending', 'basic', 'US', '2024-11-01 09:00:00', '2025-11-20 08:00:00', 12, 5000.00),
+('swing_trader_88', 'swing@cryptoemail.com', 'verified', 'premium', 'KR', '2024-03-20 15:30:00', '2025-11-19 18:20:00', 389, 720000.00),
+('long_term_holder', 'longterm@cryptoemail.com', 'verified', 'basic', 'BR', '2024-04-15 11:15:00', '2025-11-15 10:00:00', 45, 150000.00),
+('arbitrage_bot', 'arb@cryptoemail.com', 'verified', 'institutional', 'CH', '2024-05-10 08:30:00', '2025-11-20 10:15:00', 4523, 8900000.00),
+('whale_alert_vip', 'vipwhale@cryptoemail.com', 'verified', 'institutional', 'SG', '2024-06-05 14:00:00', '2025-11-20 09:00:00', 892, 12000000.00);
 
 -- =====================================================
--- CATEGORIES (Hierarchical)
+-- 3. TOKENS
 -- =====================================================
 
--- Top level categories
-INSERT INTO categories (category_name, parent_category_id, description, display_order) VALUES
-('Electronics', NULL, 'Electronic devices and accessories', 1),
-('Clothing & Fashion', NULL, 'Apparel and fashion items', 2),
-('Home & Garden', NULL, 'Home improvement and gardening', 3),
-('Books & Media', NULL, 'Books, music, and educational materials', 4),
-('Sports & Outdoors', NULL, 'Sports equipment and outdoor gear', 5),
-('Toys & Games', NULL, 'Toys, games, and entertainment', 6),
-('Health & Beauty', NULL, 'Health, wellness, and beauty products', 7),
-('Food & Beverages', NULL, 'Groceries and beverages', 8),
-('Office Supplies', NULL, 'Office and school supplies', 9),
-('Pet Supplies', NULL, 'Pet food and accessories', 10);
-
--- Electronics subcategories
-INSERT INTO categories (category_name, parent_category_id, description, display_order) VALUES
-('Computers', 1, 'Laptops, desktops, and tablets', 1),
-('Computer Accessories', 1, 'Keyboards, mice, monitors', 2),
-('Audio', 1, 'Headphones, speakers, and audio equipment', 3),
-('Mobile Devices', 1, 'Smartphones and accessories', 4),
-('Cameras', 1, 'Digital cameras and photography equipment', 5);
-
--- Clothing subcategories
-INSERT INTO categories (category_name, parent_category_id, description, display_order) VALUES
-('Mens Clothing', 2, 'Men''s apparel', 1),
-('Womens Clothing', 2, 'Women''s apparel', 2),
-('Kids Clothing', 2, 'Children''s apparel', 3),
-('Shoes', 2, 'Footwear for all', 4),
-('Accessories', 2, 'Fashion accessories', 5);
-
--- Home & Garden subcategories
-INSERT INTO categories (category_name, parent_category_id, description, display_order) VALUES
-('Kitchen', 3, 'Kitchen appliances and tools', 1),
-('Furniture', 3, 'Home furniture', 2),
-('Garden Tools', 3, 'Gardening equipment', 3),
-('Lighting', 3, 'Home lighting solutions', 4);
+INSERT INTO tokens (code, name, ticker, blockchain_id, token_type, total_supply, circulating_supply, max_supply, decimals, contract_address, status, launch_date) VALUES
+('BTC-native', 'Bitcoin', 'BTC', 2, 'native', 19500000, 19500000, 21000000, 8, NULL, 'active', '2009-01-03'),
+('ETH-native', 'Ethereum', 'ETH', 1, 'native', 120000000, 120000000, NULL, 18, NULL, 'active', '2015-07-30'),
+('0xdac17f958d2ee523a2206206994597c13d831ec7', 'Tether USD', 'USDT', 1, 'erc20', 95000000000, 95000000000, NULL, 6, '0xdac17f958d2ee523a2206206994597c13d831ec7', 'active', '2014-11-26'),
+('BNB-native', 'BNB', 'BNB', 3, 'native', 155856000, 155856000, 200000000, 18, NULL, 'active', '2017-07-25'),
+('SOL-native', 'Solana', 'SOL', 4, 'native', 450000000, 410000000, NULL, 9, NULL, 'active', '2020-03-16'),
+('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', 'USD Coin', 'USDC', 1, 'erc20', 35000000000, 35000000000, NULL, 6, '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', 'active', '2018-09-26'),
+('ADA-native', 'Cardano', 'ADA', 7, 'native', 45000000000, 35000000000, 45000000000, 6, NULL, 'active', '2017-09-29'),
+('AVAX-native', 'Avalanche', 'AVAX', 6, 'native', 445000000, 375000000, 720000000, 18, NULL, 'active', '2020-09-21'),
+('DOT-native', 'Polkadot', 'DOT', 8, 'native', 1400000000, 1280000000, NULL, 10, NULL, 'active', '2020-05-26'),
+('MATIC-native', 'Polygon', 'MATIC', 5, 'native', 10000000000, 9300000000, 10000000000, 18, NULL, 'active', '2020-05-30'),
+('0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', 'Wrapped Bitcoin', 'WBTC', 1, 'erc20', 155000, 155000, NULL, 8, '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', 'active', '2019-01-30'),
+('0x514910771af9ca656af840dff83e8264ecf986ca', 'Chainlink', 'LINK', 1, 'erc20', 1000000000, 550000000, 1000000000, 18, '0x514910771af9ca656af840dff83e8264ecf986ca', 'active', '2017-09-19'),
+('0x1f9840a85d5af5bf1d1762f925bdaddc4201f984', 'Uniswap', 'UNI', 1, 'erc20', 1000000000, 753000000, 1000000000, 18, '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984', 'active', '2020-09-17'),
+('0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0', 'Aave', 'AAVE', 1, 'erc20', 16000000, 14800000, 16000000, 18, '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0', 'active', '2020-10-02'),
+('0x6b175474e89094c44da98b954eedeac495271d0f', 'Dai Stablecoin', 'DAI', 1, 'erc20', 5200000000, 5200000000, NULL, 18, '0x6b175474e89094c44da98b954eedeac495271d0f', 'active', '2019-11-18'),
+('ARB-native', 'Arbitrum', 'ARB', 9, 'native', 10000000000, 3000000000, 10000000000, 18, NULL, 'active', '2023-03-23'),
+('OP-native', 'Optimism', 'OP', 10, 'native', 4294967296, 1100000000, 4294967296, 18, NULL, 'active', '2022-05-31'),
+('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', 'Wrapped Ether', 'WETH', 1, 'erc20', 3500000, 3500000, NULL, 18, '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', 'active', '2017-12-19'),
+('0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce', 'Shiba Inu', 'SHIB', 1, 'erc20', 999982000000000, 589000000000000, 999982000000000, 18, '0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce', 'active', '2020-08-01'),
+('0x4d224452801aced8b2f0aebe155379bb5d594381', 'ApeCoin', 'APE', 1, 'erc20', 1000000000, 368000000, 1000000000, 18, '0x4d224452801aced8b2f0aebe155379bb5d594381', 'active', '2022-03-17');
 
 -- =====================================================
--- PRODUCTS (200+ products)
+-- 4. TOKEN METADATA
 -- =====================================================
 
--- Generate SKUs and detailed product information
-INSERT INTO products (product_name, sku, category_id, brand, price, cost, msrp, weight_kg, length_cm, width_cm, height_cm, manufacturer, warranty_months, is_featured, discount_percentage) VALUES
--- Computers (category 11)
-('MacBook Pro 16"', 'COMP-MBP-16-001', 11, 'Apple', 2499.99, 1800.00, 2799.99, 2.0, 35.79, 24.59, 1.68, 'Apple Inc.', 12, TRUE, 0),
-('Dell XPS 15', 'COMP-DXP-15-002', 11, 'Dell', 1899.99, 1350.00, 2199.99, 1.8, 34.4, 23.0, 1.8, 'Dell Technologies', 12, TRUE, 5.00),
-('HP Pavilion 14', 'COMP-HPP-14-003', 11, 'HP', 799.99, 550.00, 999.99, 1.5, 32.5, 22.5, 1.79, 'HP Inc.', 12, FALSE, 10.00),
-('Lenovo ThinkPad X1', 'COMP-LTP-X1-004', 11, 'Lenovo', 1599.99, 1100.00, 1899.99, 1.4, 31.8, 21.7, 1.49, 'Lenovo Group', 12, TRUE, 0),
-('ASUS VivoBook', 'COMP-AVB-15-005', 11, 'ASUS', 699.99, 480.00, 849.99, 1.7, 36.0, 23.5, 1.99, 'ASUSTeK', 12, FALSE, 15.00),
-('Microsoft Surface Laptop', 'COMP-MSL-13-006', 11, 'Microsoft', 1299.99, 900.00, 1499.99, 1.3, 30.8, 22.3, 1.45, 'Microsoft Corp', 12, TRUE, 0),
-('Acer Aspire 5', 'COMP-ACA-15-007', 11, 'Acer', 549.99, 380.00, 699.99, 1.8, 36.3, 25.0, 1.79, 'Acer Inc.', 12, FALSE, 20.00),
-('iPad Pro 12.9"', 'COMP-IPP-12-008', 11, 'Apple', 1099.99, 750.00, 1299.99, 0.68, 28.0, 21.5, 0.64, 'Apple Inc.', 12, TRUE, 0),
-
--- Computer Accessories (category 12)
-('Logitech MX Master 3', 'ACC-LMM-3-009', 12, 'Logitech', 99.99, 55.00, 129.99, 0.14, 12.5, 8.4, 5.1, 'Logitech', 24, TRUE, 0),
-('Apple Magic Keyboard', 'ACC-AMK-001-010', 12, 'Apple', 99.00, 50.00, 119.00, 0.23, 27.9, 11.5, 1.1, 'Apple Inc.', 12, FALSE, 0),
-('Dell UltraSharp 27"', 'ACC-DUS-27-011', 12, 'Dell', 449.99, 280.00, 549.99, 5.4, 61.1, 18.6, 37.5, 'Dell Technologies', 36, TRUE, 10.00),
-('Samsung 32" 4K Monitor', 'ACC-S32-4K-012', 12, 'Samsung', 399.99, 250.00, 499.99, 7.2, 71.4, 21.4, 42.6, 'Samsung Electronics', 24, TRUE, 5.00),
-('Mechanical Gaming Keyboard RGB', 'ACC-MGK-RGB-013', 12, 'Corsair', 149.99, 85.00, 179.99, 1.2, 44.0, 16.6, 3.9, 'Corsair Gaming', 24, FALSE, 0),
-('USB-C Docking Station', 'ACC-UCD-ST-014', 12, 'CalDigit', 279.99, 180.00, 329.99, 0.85, 15.7, 8.9, 2.9, 'CalDigit', 24, FALSE, 0),
-('Wireless Webcam 1080p', 'ACC-WWC-HD-015', 12, 'Logitech', 89.99, 48.00, 109.99, 0.16, 9.5, 9.0, 7.1, 'Logitech', 24, FALSE, 10.00),
-('External SSD 2TB', 'ACC-SSD-2T-016', 12, 'Samsung', 279.99, 170.00, 339.99, 0.05, 10.5, 5.7, 0.87, 'Samsung Electronics', 36, TRUE, 0),
-
--- Audio (category 13)
-('Sony WH-1000XM5', 'AUD-SWH-XM5-017', 13, 'Sony', 399.99, 240.00, 449.99, 0.25, 21.4, 18.9, 8.0, 'Sony Corporation', 12, TRUE, 0),
-('Bose QuietComfort 45', 'AUD-BQC-45-018', 13, 'Bose', 329.99, 200.00, 379.99, 0.24, 19.5, 15.2, 7.6, 'Bose Corporation', 12, TRUE, 5.00),
-('AirPods Pro 2nd Gen', 'AUD-APP-2G-019', 13, 'Apple', 249.99, 145.00, 279.99, 0.05, 6.0, 4.5, 2.1, 'Apple Inc.', 12, TRUE, 0),
-('JBL Flip 6 Speaker', 'AUD-JFL-6-020', 13, 'JBL', 129.99, 72.00, 149.99, 0.55, 17.8, 6.9, 7.2, 'Harman International', 12, FALSE, 10.00),
-('Audio-Technica ATH-M50x', 'AUD-ATM-50X-021', 13, 'Audio-Technica', 149.99, 85.00, 179.99, 0.28, 22.0, 19.0, 9.5, 'Audio-Technica', 24, FALSE, 0),
-
--- Mobile Devices (category 14)
-('iPhone 15 Pro', 'MOB-IP15-PRO-022', 14, 'Apple', 999.99, 650.00, 1199.99, 0.19, 14.7, 7.1, 0.83, 'Apple Inc.', 12, TRUE, 0),
-('Samsung Galaxy S24', 'MOB-SGS-24-023', 14, 'Samsung', 899.99, 580.00, 1099.99, 0.17, 14.6, 7.0, 0.76, 'Samsung Electronics', 12, TRUE, 0),
-('Google Pixel 8', 'MOB-GP8-001-024', 14, 'Google', 699.99, 450.00, 799.99, 0.19, 15.0, 7.1, 0.89, 'Google LLC', 12, FALSE, 5.00),
-('Phone Case Universal', 'MOB-PCU-001-025', 14, 'OtterBox', 39.99, 18.00, 49.99, 0.08, 16.0, 8.0, 1.5, 'OtterBox', 12, FALSE, 15.00),
-
--- Cameras (category 15)
-('Canon EOS R6', 'CAM-CER-6-026', 15, 'Canon', 2499.99, 1650.00, 2899.99, 0.68, 13.8, 9.8, 8.8, 'Canon Inc.', 12, TRUE, 0),
-('Sony A7 IV', 'CAM-SA7-IV-027', 15, 'Sony', 2499.99, 1700.00, 2899.99, 0.66, 13.1, 9.6, 7.9, 'Sony Corporation', 12, TRUE, 0),
-('GoPro HERO12', 'CAM-GPH-12-028', 15, 'GoPro', 399.99, 250.00, 499.99, 0.15, 7.1, 5.5, 3.4, 'GoPro Inc.', 12, FALSE, 10.00),
-
--- Men's Clothing (category 16)
-('Levi''s 501 Jeans', 'CLO-L501-BLU-029', 16, 'Levi''s', 59.99, 28.00, 79.99, 0.6, 30.0, 25.0, 5.0, 'Levi Strauss', 0, FALSE, 0),
-('Nike Dri-FIT T-Shirt', 'CLO-NDF-TSH-030', 16, 'Nike', 29.99, 12.00, 39.99, 0.2, 28.0, 20.0, 2.0, 'Nike Inc.', 0, FALSE, 20.00),
-('Adidas Hoodie', 'CLO-ADH-GRY-031', 16, 'Adidas', 69.99, 32.00, 89.99, 0.5, 32.0, 28.0, 4.0, 'Adidas AG', 0, FALSE, 15.00),
-('Ralph Lauren Polo', 'CLO-RLP-BLK-032', 16, 'Ralph Lauren', 89.99, 42.00, 119.99, 0.3, 29.0, 22.0, 3.0, 'Ralph Lauren Corp', 0, TRUE, 0),
-('Columbia Winter Jacket', 'CLO-CWJ-BLK-033', 16, 'Columbia', 199.99, 110.00, 249.99, 1.2, 35.0, 30.0, 8.0, 'Columbia Sportswear', 12, TRUE, 5.00),
-
--- Women's Clothing (category 17)
-('Lululemon Leggings', 'CLO-LLL-BLK-034', 17, 'Lululemon', 98.00, 45.00, 128.00, 0.3, 28.0, 20.0, 2.0, 'Lululemon', 0, TRUE, 0),
-('Zara Floral Dress', 'CLO-ZFD-FLR-035', 17, 'Zara', 79.99, 35.00, 99.99, 0.4, 32.0, 25.0, 3.0, 'Zara', 0, FALSE, 10.00),
-('H&M Blazer', 'CLO-HMB-BLK-036', 17, 'H&M', 89.99, 40.00, 119.99, 0.6, 30.0, 26.0, 4.0, 'H&M', 0, FALSE, 15.00),
-
--- Shoes (category 19)
-('Nike Air Max 270', 'SHO-NAM-270-037', 19, 'Nike', 149.99, 75.00, 179.99, 0.9, 32.0, 20.0, 12.0, 'Nike Inc.', 6, TRUE, 0),
-('Adidas Ultraboost', 'SHO-AUB-WHT-038', 19, 'Adidas', 179.99, 92.00, 219.99, 0.85, 31.0, 19.0, 11.5, 'Adidas AG', 6, TRUE, 5.00),
-('Converse Chuck Taylor', 'SHO-CCT-BLK-039', 19, 'Converse', 59.99, 28.00, 74.99, 0.7, 30.0, 18.0, 10.0, 'Converse', 6, FALSE, 0),
-('Timberland Boots', 'SHO-TBB-BRN-040', 19, 'Timberland', 189.99, 100.00, 229.99, 1.3, 32.0, 22.0, 13.0, 'Timberland LLC', 12, FALSE, 10.00),
-
--- Kitchen (category 21)
-('Ninja Air Fryer', 'KIT-NAF-6QT-041', 21, 'Ninja', 119.99, 65.00, 149.99, 4.5, 33.0, 33.0, 33.0, 'SharkNinja', 12, TRUE, 15.00),
-('KitchenAid Stand Mixer', 'KIT-KSM-5QT-042', 21, 'KitchenAid', 399.99, 240.00, 499.99, 10.0, 35.3, 22.1, 35.1, 'Whirlpool Corp', 12, TRUE, 0),
-('Instant Pot Duo', 'KIT-IPD-6QT-043', 21, 'Instant Pot', 99.99, 52.00, 129.99, 5.5, 32.5, 31.5, 31.7, 'Instant Brands', 12, FALSE, 20.00),
-('Breville Espresso Machine', 'KIT-BEM-001-044', 21, 'Breville', 699.99, 420.00, 849.99, 13.0, 32.0, 31.0, 40.0, 'Breville', 12, TRUE, 5.00),
-('Cuisinart Food Processor', 'KIT-CFP-14C-045', 21, 'Cuisinart', 199.99, 115.00, 249.99, 8.2, 29.2, 21.6, 35.6, 'Cuisinart', 36, FALSE, 10.00),
-
--- Sports Equipment (category 5)
-('Peloton Bike', 'SPT-PEL-BK-046', 5, 'Peloton', 1495.00, 980.00, 1895.00, 60.0, 122.0, 59.0, 135.0, 'Peloton Interactive', 12, TRUE, 0),
-('NordicTrack Treadmill', 'SPT-NTT-1750-047', 5, 'NordicTrack', 1799.99, 1150.00, 2199.99, 105.0, 203.0, 97.0, 157.0, 'ICON Health', 24, TRUE, 5.00),
-('Bowflex Dumbbells', 'SPT-BFD-552-048', 5, 'Bowflex', 549.99, 320.00, 699.99, 23.0, 40.6, 22.9, 22.9, 'Bowflex', 24, FALSE, 10.00),
-('Yoga Mat Premium', 'SPT-YMP-6MM-049', 5, 'Manduka', 89.99, 42.00, 119.99, 3.2, 180.0, 66.0, 0.6, 'Manduka', 12, FALSE, 0),
-('TRX Suspension Trainer', 'SPT-TRX-PRO-050', 5, 'TRX', 199.99, 110.00, 249.99, 1.8, 30.0, 25.0, 8.0, 'TRX', 12, FALSE, 15.00);
-
--- Add more products for variety (abbreviated for space)
-INSERT INTO products (product_name, sku, category_id, brand, price, cost, msrp, weight_kg, is_featured, discount_percentage) VALUES
--- Books & Media (category 4)
-('The Great Novel', 'BOK-TGN-001-051', 4, 'Penguin', 24.99, 12.00, 29.99, 0.5, FALSE, 0),
-('Data Science Handbook', 'BOK-DSH-2024-052', 4, 'O''Reilly', 59.99, 30.00, 69.99, 0.8, TRUE, 10.00),
-('Python Programming', 'BOK-PYP-ADV-053', 4, 'O''Reilly', 49.99, 24.00, 59.99, 0.7, FALSE, 0),
-('Business Strategy', 'BOK-BST-MBA-054', 4, 'Harvard', 44.99, 22.00, 54.99, 0.6, FALSE, 5.00),
-('Cookbook Mediterranean', 'BOK-CME-2024-055', 4, 'Taschen', 34.99, 17.00, 44.99, 1.2, FALSE, 0),
-
--- Toys & Games (category 6)
-('LEGO Star Wars Set', 'TOY-LSW-001-056', 6, 'LEGO', 159.99, 85.00, 199.99, 1.5, TRUE, 10.00),
-('Monopoly Classic', 'TOY-MON-CLA-057', 6, 'Hasbro', 29.99, 14.00, 39.99, 1.1, FALSE, 0),
-('Nintendo Switch', 'TOY-NSW-OLE-058', 6, 'Nintendo', 349.99, 220.00, 399.99, 0.42, TRUE, 0),
-('PlayStation 5', 'TOY-PS5-STD-059', 6, 'Sony', 499.99, 350.00, 549.99, 4.5, TRUE, 0),
-('Xbox Series X', 'TOY-XSX-001-060', 6, 'Microsoft', 499.99, 345.00, 549.99, 4.45, TRUE, 0),
-
--- Health & Beauty (category 7)
-('Dyson Hair Dryer', 'HEA-DHD-SUP-061', 7, 'Dyson', 429.99, 270.00, 499.99, 0.66, TRUE, 5.00),
-('Oral-B Electric Toothbrush', 'HEA-OBE-IO9-062', 7, 'Oral-B', 199.99, 105.00, 249.99, 0.3, FALSE, 15.00),
-('Vitamin D3 5000IU', 'HEA-VD3-5K-063', 7, 'Nature Made', 19.99, 8.00, 24.99, 0.1, FALSE, 0),
-('Protein Powder 5lb', 'HEA-PPW-5LB-064', 7, 'Optimum', 59.99, 32.00, 74.99, 2.3, FALSE, 10.00),
-('Face Serum Vitamin C', 'HEA-FSV-C30-065', 7, 'CeraVe', 39.99, 18.00, 49.99, 0.12, FALSE, 0),
-
--- Food & Beverages (category 8)
-('Organic Coffee Beans 2lb', 'FOO-OCB-2LB-066', 8, 'Lavazza', 24.99, 12.00, 29.99, 0.91, FALSE, 0),
-('Green Tea Matcha', 'FOO-GTM-100-067', 8, 'Ippodo', 34.99, 16.00, 44.99, 0.1, TRUE, 5.00),
-('Olive Oil Extra Virgin 1L', 'FOO-OEV-1L-068', 8, 'Colavita', 29.99, 14.00, 39.99, 0.92, FALSE, 0),
-('Almonds Raw 2lb', 'FOO-ALR-2LB-069', 8, 'Blue Diamond', 19.99, 9.00, 24.99, 0.91, FALSE, 10.00),
-('Energy Bars Variety 20pk', 'FOO-EBV-20P-070', 8, 'CLIF', 24.99, 12.00, 29.99, 1.2, FALSE, 0),
-
--- Office Supplies (category 9)
-('Stapler Heavy Duty', 'OFF-SHD-001-071', 9, 'Swingline', 29.99, 14.00, 39.99, 0.5, FALSE, 0),
-('Paper Ream 5000 Sheets', 'OFF-PR5-WHT-072', 9, 'HP', 49.99, 22.00, 64.99, 12.0, FALSE, 15.00),
-('Pen Set Ballpoint 50pk', 'OFF-PSB-50P-073', 9, 'BIC', 14.99, 6.00, 19.99, 0.6, FALSE, 0),
-('Notebook Pack 10ct', 'OFF-NBP-10C-074', 9, 'Moleskine', 39.99, 18.00, 49.99, 1.5, FALSE, 10.00),
-
--- Pet Supplies (category 10)
-('Dog Food Premium 30lb', 'PET-DFP-30L-075', 10, 'Blue Buffalo', 69.99, 38.00, 89.99, 13.6, FALSE, 10.00),
-('Cat Litter 40lb', 'PET-CLT-40L-076', 10, 'Tidy Cats', 34.99, 16.00, 44.99, 18.1, FALSE, 0),
-('Dog Bed Large', 'PET-DBL-001-077', 10, 'Furhaven', 89.99, 45.00, 119.99, 3.2, FALSE, 15.00),
-('Cat Tree Tower', 'PET-CTT-6FT-078', 10, 'Frisco', 119.99, 62.00, 159.99, 15.0, TRUE, 10.00);
-
--- Add more products to reach 200+ total
-INSERT INTO products (product_name, sku, category_id, brand, price, cost, weight_kg) VALUES
-('Wireless Router AC1750', 'TECH-WRT-AC17-079', 12, 'TP-Link', 79.99, 42.00, 0.4),
-('Smart Watch Series 9', 'TECH-SWS-9-080', 14, 'Apple', 399.99, 250.00, 0.05),
-('Fitness Tracker', 'TECH-FTR-001-081', 14, 'Fitbit', 149.99, 82.00, 0.03),
-('Portable Charger 20000mAh', 'TECH-PCH-20K-082', 12, 'Anker', 49.99, 24.00, 0.35),
-('Hiking Backpack 50L', 'SPT-HBP-50L-083', 5, 'Osprey', 189.99, 105.00, 1.8),
-('Camping Tent 4-Person', 'SPT-CT4-001-084', 5, 'Coleman', 199.99, 115.00, 8.5),
-('Sleeping Bag 20F', 'SPT-SLB-20F-085', 5, 'North Face', 149.99, 85.00, 1.6),
-('Water Bottle 32oz Steel', 'SPT-WBS-32-086', 5, 'Hydro Flask', 44.99, 22.00, 0.35),
-('Bicycle Mountain 29"', 'SPT-BMT-29-087', 5, 'Trek', 899.99, 520.00, 14.0),
-('Helmet Cycling', 'SPT-HCY-001-088', 5, 'Giro', 79.99, 42.00, 0.3),
-('Running Shoes Trail', 'SHO-RST-001-089', 19, 'Salomon', 139.99, 75.00, 0.6),
-('Basketball Official', 'SPT-BBO-NBA-090', 5, 'Spalding', 29.99, 14.00, 0.62),
-('Tennis Racket Pro', 'SPT-TRP-001-091', 5, 'Wilson', 189.99, 105.00, 0.34),
-('Golf Club Set', 'SPT-GCS-14P-092', 5, 'Callaway', 799.99, 450.00, 12.0),
-('Desk Lamp LED', 'OFF-DLL-001-093', 9, 'TaoTronics', 39.99, 20.00, 0.8),
-('Office Chair Ergonomic', 'OFF-OCE-001-094', 9, 'Herman Miller', 899.99, 520.00, 22.0),
-('Standing Desk Electric', 'OFF-SDE-60-095', 9, 'FlexiSpot', 449.99, 260.00, 35.0),
-('Monitor Arm Dual', 'OFF-MAD-002-096', 9, 'VIVO', 89.99, 45.00, 4.5),
-('Coffee Maker Programmable', 'KIT-CMP-12C-097', 21, 'Mr. Coffee', 49.99, 24.00, 2.8),
-('Blender High Speed', 'KIT-BHS-001-098', 21, 'Vitamix', 449.99, 270.00, 5.0),
-('Toaster 4-Slice', 'KIT-T4S-001-099', 21, 'Cuisinart', 79.99, 42.00, 3.2),
-('Vacuum Cordless', 'HOM-VCL-V11-100', 3, 'Dyson', 599.99, 360.00, 2.6);
-
--- Continue adding products to reach 200+ (abbreviated for brevity)
--- Adding 100 more simple products to reach target
-DO $$
-DECLARE
-    i INTEGER;
-    cat_id INTEGER;
-    price NUMERIC;
-BEGIN
-    FOR i IN 101..200 LOOP
-        cat_id := (i % 10) + 1; -- Rotate through categories
-        price := 20.00 + (i * 2.5); -- Variable pricing
-        INSERT INTO products (product_name, sku, category_id, brand, price, cost, weight_kg)
-        VALUES (
-            'Product Item ' || i,
-            'GEN-PROD-' || LPAD(i::TEXT, 3, '0'),
-            cat_id,
-            CASE (i % 5)
-                WHEN 0 THEN 'GenericBrand A'
-                WHEN 1 THEN 'GenericBrand B'
-                WHEN 2 THEN 'GenericBrand C'
-                WHEN 3 THEN 'GenericBrand D'
-                ELSE 'GenericBrand E'
-            END,
-            price,
-            price * 0.55,
-            0.5 + (i % 10) * 0.3
-        );
-    END LOOP;
-END $$;
+INSERT INTO token_metadata (token_id, description, website_url, category, market_cap_rank, coingecko_id) VALUES
+(1, 'Bitcoin is a decentralized digital currency, without a central bank or single administrator.', 'https://bitcoin.org', 'Currency', 1, 'bitcoin'),
+(2, 'Ethereum is a decentralized platform that runs smart contracts.', 'https://ethereum.org', 'Smart Contract Platform', 2, 'ethereum'),
+(3, 'Tether is a stablecoin cryptocurrency pegged to the US dollar.', 'https://tether.to', 'Stablecoin', 3, 'tether'),
+(4, 'BNB is the native cryptocurrency of the Binance exchange and BSC blockchain.', 'https://www.bnbchain.org', 'Exchange', 4, 'binancecoin'),
+(5, 'Solana is a high-performance blockchain supporting builders around the world.', 'https://solana.com', 'Smart Contract Platform', 5, 'solana'),
+(6, 'USDC is a fully collateralized US dollar stablecoin.', 'https://www.circle.com/usdc', 'Stablecoin', 6, 'usd-coin'),
+(7, 'Cardano is a proof-of-stake blockchain platform.', 'https://cardano.org', 'Smart Contract Platform', 8, 'cardano'),
+(8, 'Avalanche is a layer one blockchain that functions as a platform for DeFi.', 'https://www.avax.network', 'Smart Contract Platform', 9, 'avalanche-2'),
+(9, 'Polkadot is a heterogeneous multi-chain interchange and translation architecture.', 'https://polkadot.network', 'Interoperability', 11, 'polkadot'),
+(10, 'Polygon is a protocol for building Ethereum-compatible blockchain networks.', 'https://polygon.technology', 'Scaling', 13, 'matic-network'),
+(11, 'Wrapped Bitcoin brings Bitcoin''s liquidity to Ethereum.', 'https://wbtc.network', 'Wrapped Token', 15, 'wrapped-bitcoin'),
+(12, 'Chainlink is a decentralized oracle network.', 'https://chain.link', 'Oracle', 17, 'chainlink'),
+(13, 'Uniswap is a leading decentralized crypto trading protocol.', 'https://uniswap.org', 'DeFi', 19, 'uniswap'),
+(14, 'Aave is an open source and non-custodial liquidity protocol.', 'https://aave.com', 'DeFi', 23, 'aave'),
+(15, 'DAI is a stablecoin cryptocurrency which aims to keep its value at one USD.', 'https://makerdao.com', 'Stablecoin', 25, 'dai'),
+(16, 'Arbitrum is a Layer 2 scaling solution for Ethereum.', 'https://arbitrum.io', 'Scaling', 28, 'arbitrum'),
+(17, 'Optimism is a Layer 2 scaling solution for Ethereum.', 'https://optimism.io', 'Scaling', 31, 'optimism'),
+(18, 'Wrapped Ether is ERC-20 compatible version of ETH.', 'https://weth.io', 'Wrapped Token', 45, 'weth'),
+(19, 'Shiba Inu is a decentralized meme token.', 'https://shibatoken.com', 'Meme', 18, 'shiba-inu'),
+(20, 'ApeCoin is the ecosystem token for the APE ecosystem.', 'https://apecoin.com', 'NFT', 52, 'apecoin');
 
 -- =====================================================
--- SUPPLIERS
+-- 5. TOKEN PRICE HISTORY (Recent 10 days of daily data for major tokens)
 -- =====================================================
 
-INSERT INTO suppliers (supplier_name, contact_name, email, phone, country, city, rating, payment_terms) VALUES
-('TechSupply Global', 'John Chen', 'j.chen@techsupply.com', '+1-800-555-0101', 'USA', 'San Francisco', 4.7, 'Net 30'),
-('Electronics Wholesale Inc', 'Sarah Kim', 's.kim@ewholesale.com', '+1-800-555-0102', 'USA', 'Los Angeles', 4.5, 'Net 45'),
-('Fashion Direct Ltd', 'Marie Dubois', 'm.dubois@fashiondirect.co.uk', '+44-800-123-4567', 'UK', 'London', 4.3, 'Net 30'),
-('Sports Gear Distributors', 'Carlos Rodriguez', 'c.rodriguez@sportsgear.com', '+1-800-555-0103', 'USA', 'Chicago', 4.6, 'Net 30'),
-('Home Essentials Supply', 'Anna Mueller', 'a.mueller@homeessentials.de', '+49-800-987-6543', 'Germany', 'Berlin', 4.4, 'Net 60'),
-('Asian Electronics Hub', 'Li Wei', 'l.wei@asianhub.cn', '+86-800-888-8888', 'China', 'Shenzhen', 4.2, 'Net 45'),
-('Premium Appliances Co', 'James Wilson', 'j.wilson@premiumappliances.com', '+1-800-555-0104', 'USA', 'New York', 4.8, 'Net 30'),
-('Global Fashion Exports', 'Sofia Rossi', 's.rossi@globalfashion.it', '+39-800-555-7777', 'Italy', 'Milan', 4.5, 'Net 45'),
-('Outdoor Adventure Supply', 'Erik Johansson', 'e.johansson@outdooradv.se', '+46-800-123-456', 'Sweden', 'Stockholm', 4.7, 'Net 30'),
-('Book Publishing Group', 'Emma Taylor', 'e.taylor@bookpub.com', '+1-800-555-0105', 'USA', 'Boston', 4.6, 'Net 60'),
-('Pet Products International', 'Robert Brown', 'r.brown@petproducts.com', '+1-800-555-0106', 'USA', 'Dallas', 4.4, 'Net 30'),
-('Office Solutions Corp', 'Linda Garcia', 'l.garcia@officesolutions.com', '+1-800-555-0107', 'USA', 'Atlanta', 4.5, 'Net 45'),
-('Health & Wellness Imports', 'David Park', 'd.park@healthimports.com', '+1-800-555-0108', 'USA', 'Seattle', 4.6, 'Net 30'),
-('Food & Beverage Distributors', 'Maria Santos', 'm.santos@fooddist.com', '+1-800-555-0109', 'USA', 'Miami', 4.3, 'Net 30'),
-('Toy Kingdom Supply', 'Michael Chang', 'm.chang@toykingdom.com', '+852-800-999-9999', 'Hong Kong', 'Kowloon', 4.5, 'Net 45');
+-- Bitcoin price history
+INSERT INTO token_price_history (token_id, timestamp, open_price, high_price, low_price, close_price, volume_24h, volume_24h_usd, market_cap, price_change_24h, interval) VALUES
+(1, '2025-11-11 00:00:00', 81876.54, 83456.78, 81543.21, 82543.21, 27890.12, 2302345678, 1610187600000, 0.81, '1d'),
+(1, '2025-11-12 00:00:00', 82543.21, 84234.56, 82234.56, 83456.78, 29012.34, 2421234567, 1627675800000, 1.11, '1d'),
+(1, '2025-11-13 00:00:00', 83456.78, 85123.45, 83123.45, 84234.56, 30123.45, 2537890123, 1642663400000, 0.93, '1d'),
+(1, '2025-11-14 00:00:00', 84234.56, 85890.45, 83876.54, 84876.54, 28901.23, 2453456789, 1655156900000, 0.76, '1d'),
+(1, '2025-11-15 00:00:00', 84876.54, 86543.21, 84543.21, 85543.21, 31234.56, 2672345678, 1668649400000, 0.79, '1d'),
+(1, '2025-11-16 00:00:00', 85543.21, 87234.56, 85234.56, 86234.56, 32345.67, 2789012345, 1682641900000, 0.81, '1d'),
+(1, '2025-11-17 00:00:00', 86234.56, 87890.45, 85876.54, 86876.54, 30123.45, 2617890123, 1695135400000, 0.74, '1d'),
+(1, '2025-11-18 00:00:00', 86876.54, 88543.21, 86543.21, 87543.21, 31234.56, 2734567890, 1708127900000, 0.77, '1d'),
+(1, '2025-11-19 00:00:00', 87543.21, 89234.56, 87234.56, 88234.56, 33456.78, 2952345678, 1721620400000, 0.79, '1d'),
+(1, '2025-11-20 00:00:00', 88234.56, 89876.54, 87876.54, 88876.54, 34567.89, 3072345678, 1734112900000, 0.73, '1d');
+
+-- Ethereum price history
+INSERT INTO token_price_history (token_id, timestamp, open_price, high_price, low_price, close_price, volume_24h, volume_24h_usd, market_cap, price_change_24h, interval) VALUES
+(2, '2025-11-11 00:00:00', 3467.89, 3545.67, 3456.78, 3512.34, 7789012.34, 27356789012, 421481000000, 1.28, '1d'),
+(2, '2025-11-12 00:00:00', 3512.34, 3589.12, 3501.23, 3556.78, 8012345.67, 28489012345, 426815000000, 1.26, '1d'),
+(2, '2025-11-13 00:00:00', 3556.78, 3634.56, 3545.67, 3601.23, 8234567.89, 29645678901, 432148000000, 1.25, '1d'),
+(2, '2025-11-14 00:00:00', 3601.23, 3678.90, 3589.12, 3645.67, 7890123.45, 28767890123, 437482000000, 1.23, '1d'),
+(2, '2025-11-15 00:00:00', 3645.67, 3723.45, 3634.56, 3689.12, 8123456.78, 29978901234, 442727000000, 1.19, '1d'),
+(2, '2025-11-16 00:00:00', 3689.12, 3767.89, 3678.90, 3734.56, 8345678.90, 31156789012, 448061000000, 1.23, '1d'),
+(2, '2025-11-17 00:00:00', 3734.56, 3812.34, 3723.45, 3778.90, 8012345.67, 30267890123, 453394000000, 1.19, '1d'),
+(2, '2025-11-18 00:00:00', 3778.90, 3856.78, 3767.89, 3823.45, 8234567.89, 31489012345, 458728000000, 1.18, '1d'),
+(2, '2025-11-19 00:00:00', 3823.45, 3901.23, 3812.34, 3867.89, 8567890.12, 33134567890, 464062000000, 1.16, '1d'),
+(2, '2025-11-20 00:00:00', 3867.89, 3945.67, 3856.78, 3912.34, 8789012.34, 34378901234, 469396000000, 1.15, '1d');
+
+-- Add latest price data for other tokens
+INSERT INTO token_price_history (token_id, timestamp, open_price, high_price, low_price, close_price, volume_24h, volume_24h_usd, market_cap, price_change_24h, interval) VALUES
+(3, '2025-11-20 00:00:00', 1.0000, 1.0002, 0.9998, 1.0001, 95000000000, 95000000000, 95000000000, 0.01, '1d'),
+(4, '2025-11-20 00:00:00', 612.34, 625.67, 608.90, 619.45, 2345678.90, 1453456789, 96567890000, 1.16, '1d'),
+(5, '2025-11-20 00:00:00', 143.56, 148.90, 142.34, 146.78, 8901234.56, 1306789012, 60180400000, 2.24, '1d'),
+(6, '2025-11-20 00:00:00', 0.9999, 1.0001, 0.9997, 1.0000, 35000000000, 35000000000, 35000000000, 0.01, '1d'),
+(7, '2025-11-20 00:00:00', 0.5678, 0.5823, 0.5623, 0.5789, 1234567890, 715123456, 20261500000, 1.95, '1d'),
+(8, '2025-11-20 00:00:00', 34.56, 35.89, 34.12, 35.23, 5678901.23, 200123456, 13211250000, 1.94, '1d'),
+(9, '2025-11-20 00:00:00', 6.78, 6.98, 6.71, 6.89, 234567890.12, 1616234567, 8819200000, 1.62, '1d'),
+(10, '2025-11-20 00:00:00', 0.8934, 0.9156, 0.8823, 0.9012, 456789012.34, 411678901, 8381160000, 0.87, '1d'),
+(11, '2025-11-20 00:00:00', 88543.21, 89876.54, 88234.56, 88876.54, 2345.67, 208456789, 13776164000, 0.38, '1d'),
+(12, '2025-11-20 00:00:00', 15.67, 16.12, 15.54, 15.89, 23456789.01, 372789012, 8739500000, 1.40, '1d'),
+(13, '2025-11-20 00:00:00', 9.87, 10.23, 9.76, 10.01, 34567890.12, 345978901, 7537530000, 1.42, '1d'),
+(14, '2025-11-20 00:00:00', 298.45, 306.78, 296.34, 302.56, 1234567.89, 373567890, 4477888000, 1.38, '1d'),
+(15, '2025-11-20 00:00:00', 0.9999, 1.0001, 0.9998, 1.0000, 5200000000, 5200000000, 5200000000, 0.01, '1d'),
+(16, '2025-11-20 00:00:00', 1.23, 1.28, 1.21, 1.25, 345678901.23, 432098626, 3750000000, 1.63, '1d'),
+(17, '2025-11-20 00:00:00', 2.34, 2.41, 2.32, 2.37, 234567890.12, 555965318, 2607000000, 1.28, '1d'),
+(18, '2025-11-20 00:00:00', 3912.34, 3945.67, 3898.56, 3928.45, 456789.01, 1794567890, 13749575000, 0.41, '1d'),
+(19, '2025-11-20 00:00:00', 0.00002134, 0.00002189, 0.00002112, 0.00002156, 8901234567890, 191934567, 12700400000, 1.03, '1d'),
+(20, '2025-11-20 00:00:00', 1.45, 1.52, 1.43, 1.48, 123456789.01, 182716928, 544640000, 2.07, '1d');
 
 -- =====================================================
--- PRODUCT-SUPPLIER RELATIONSHIPS
+-- 6. TOKEN VOLUME (Last 7 days for major tokens)
 -- =====================================================
 
--- Create relationships between products and suppliers
-INSERT INTO product_suppliers (product_id, supplier_id, supply_price, min_order_quantity, lead_time_days, is_preferred) VALUES
--- Electronics from multiple suppliers
-(1, 1, 1750.00, 5, 7, TRUE),
-(2, 1, 1300.00, 5, 7, TRUE),
-(3, 2, 520.00, 10, 10, TRUE),
-(4, 1, 1050.00, 5, 7, FALSE),
-(5, 6, 450.00, 20, 14, TRUE),
-(6, 1, 850.00, 5, 7, TRUE),
-(7, 6, 360.00, 30, 21, TRUE),
-(8, 1, 700.00, 10, 7, TRUE),
--- Accessories
-(9, 2, 50.00, 50, 5, TRUE),
-(10, 1, 45.00, 50, 5, TRUE),
-(11, 2, 260.00, 10, 7, TRUE),
-(12, 6, 230.00, 10, 14, TRUE),
-(13, 2, 80.00, 20, 7, TRUE),
-(14, 1, 170.00, 15, 7, TRUE),
-(15, 2, 45.00, 30, 7, TRUE),
-(16, 6, 160.00, 20, 10, TRUE),
--- Audio
-(17, 1, 230.00, 10, 5, TRUE),
-(18, 2, 190.00, 10, 5, TRUE),
-(19, 1, 140.00, 20, 5, TRUE),
-(20, 2, 68.00, 30, 7, TRUE),
-(21, 2, 80.00, 20, 7, TRUE),
--- Mobile
-(22, 1, 620.00, 5, 3, TRUE),
-(23, 6, 560.00, 5, 10, TRUE),
-(24, 1, 430.00, 10, 5, TRUE),
--- Clothing
-(29, 3, 26.00, 100, 14, TRUE),
-(30, 3, 11.00, 200, 14, TRUE),
-(31, 8, 30.00, 100, 21, TRUE),
-(32, 3, 40.00, 50, 14, TRUE),
-(33, 9, 105.00, 30, 14, TRUE),
-(34, 8, 42.00, 80, 21, TRUE),
--- Sports
-(46, 4, 950.00, 5, 30, TRUE),
-(47, 4, 1120.00, 3, 30, TRUE),
-(48, 4, 310.00, 10, 14, TRUE),
-(49, 9, 40.00, 50, 14, TRUE),
-(50, 4, 105.00, 25, 14, TRUE);
-
--- Add more supplier relationships
-DO $$
-DECLARE
-    i INTEGER;
-    supplier_id_var INTEGER;
-BEGIN
-    FOR i IN 51..100 LOOP
-        supplier_id_var := ((i - 51) % 15) + 1;
-        INSERT INTO product_suppliers (product_id, supplier_id, supply_price, min_order_quantity, lead_time_days, is_preferred)
-        SELECT i, supplier_id_var, p.cost * 0.95, 10, 7, TRUE
-        FROM products p WHERE p.product_id = i;
-    END LOOP;
-END $$;
+INSERT INTO token_volume (token_id, date, total_volume, total_volume_usd, buy_volume, sell_volume, trade_count, unique_traders, average_trade_size) VALUES
+-- Bitcoin volumes
+(1, '2025-11-20', 34567.89, 3072345678, 17890.12, 16677.77, 45678, 8934, 0.7567),
+(1, '2025-11-19', 33456.78, 2952345678, 17234.56, 16222.22, 44567, 8723, 0.7512),
+(1, '2025-11-18', 31234.56, 2734567890, 16123.45, 15111.11, 42345, 8456, 0.7378),
+(1, '2025-11-17', 30123.45, 2617890123, 15567.89, 14555.56, 41234, 8234, 0.7304),
+(1, '2025-11-16', 32345.67, 2789012345, 16678.90, 15666.77, 43567, 8567, 0.7425),
+-- Ethereum volumes
+(2, '2025-11-20', 8789012.34, 34378901234, 4567890.12, 4221122.22, 78901, 15678, 111.3456),
+(2, '2025-11-19', 8567890.12, 33134567890, 4456789.01, 4111101.11, 76890, 15234, 111.4567),
+(2, '2025-11-18', 8234567.89, 31489012345, 4234567.89, 4000000.00, 74567, 14890, 110.4321),
+(2, '2025-11-17', 8012345.67, 30267890123, 4112345.67, 3900000.00, 73456, 14567, 109.1234),
+(2, '2025-11-16', 8345678.90, 31156789012, 4323456.78, 4022222.12, 75678, 15012, 110.2890),
+-- USDT volumes
+(3, '2025-11-20', 95000000000, 95000000000, 48500000000, 46500000000, 234567, 45678, 404894.5123),
+(3, '2025-11-19', 93000000000, 93000000000, 47500000000, 45500000000, 229345, 44567, 405612.3456),
+(3, '2025-11-18', 91000000000, 91000000000, 46500000000, 44500000000, 224123, 43456, 406123.4567);
 
 -- =====================================================
--- INVENTORY (Products distributed across warehouses)
+-- 7. TOKEN REVENUE
 -- =====================================================
 
--- Distribute inventory across warehouses for first 100 products
-DO $$
-DECLARE
-    prod_id INTEGER;
-    wh_id INTEGER;
-    qty INTEGER;
-BEGIN
-    FOR prod_id IN 1..100 LOOP
-        FOR wh_id IN 1..5 LOOP
-            -- Not all products in all warehouses
-            IF (prod_id + wh_id) % 3 != 0 THEN
-                qty := 20 + (prod_id * wh_id) % 200;
-                INSERT INTO inventory (product_id, warehouse_id, quantity, reserved_quantity, last_restock_date, bin_location)
-                VALUES (
-                    prod_id,
-                    wh_id,
-                    qty,
-                    (qty * 0.1)::INTEGER, -- 10% reserved
-                    CURRENT_DATE - ((prod_id + wh_id) % 90 || ' days')::INTERVAL,
-                    'A' || ((prod_id % 26) + 1) || '-' || ((wh_id * 10) + (prod_id % 10))
-                );
-            END IF;
-        END LOOP;
-    END LOOP;
-END $$;
+INSERT INTO token_revenue (token_id, date, revenue_type, amount, amount_usd, source, description) VALUES
+-- Trading fees
+(2, '2025-11-20', 'trading_fees', 12345.6789, 48312567, 'Uniswap', 'Trading fees collected from ETH pairs on Uniswap'),
+(2, '2025-11-19', 'trading_fees', 11890.1234, 45678901, 'Uniswap', 'Trading fees collected from ETH pairs on Uniswap'),
+(4, '2025-11-20', 'trading_fees', 8901.2345, 5512345, 'PancakeSwap', 'Trading fees from BNB pairs on PancakeSwap'),
+(5, '2025-11-20', 'transaction_fees', 56789.0123, 8334567, 'Solana Network', 'Network transaction fees'),
+-- Staking rewards
+(2, '2025-11-20', 'staking_rewards', 45678.9012, 178678901, 'Lido', 'ETH staking rewards distributed to stakers'),
+(7, '2025-11-20', 'staking_rewards', 890123.4567, 515123456, 'Cardano Network', 'ADA staking rewards'),
+(8, '2025-11-20', 'staking_rewards', 23456.7890, 826789012, 'Avalanche Network', 'AVAX staking rewards'),
+-- Token burns
+(4, '2025-11-20', 'burn', 234.5678, 145234, 'Binance', 'Quarterly BNB token burn'),
+(19, '2025-11-20', 'burn', 1000000000000, 21560000, 'Shiba Inu', 'Community-driven SHIB burn');
 
 -- =====================================================
--- CUSTOMERS (150 customers)
+-- 8. EXCHANGES
 -- =====================================================
 
-INSERT INTO customers (customer_name, email, phone, date_of_birth, gender, country, region, city, postal_code, signup_date, customer_segment, loyalty_tier, preferred_payment_method, marketing_consent, referral_source) VALUES
--- Premium US Customers
-('John Anderson', 'john.anderson@email.com', '+1-555-2001', '1985-03-15', 'Male', 'USA', 'West', 'Los Angeles', '90001', '2022-01-10', 'Premium', 'Platinum', 'credit_card', TRUE, 'organic'),
-('Sarah Williams', 'sarah.williams@email.com', '+1-555-2002', '1987-07-22', 'Female', 'USA', 'East', 'New York', '10001', '2022-01-15', 'Premium', 'Gold', 'credit_card', TRUE, 'referral'),
-('Michael Johnson', 'michael.johnson@email.com', '+1-555-2003', '1983-11-08', 'Male', 'USA', 'West', 'San Francisco', '94102', '2022-02-01', 'Premium', 'Platinum', 'paypal', TRUE, 'organic'),
-('Emily Davis', 'emily.davis@email.com', '+1-555-2004', '1990-05-17', 'Female', 'USA', 'East', 'Boston', '02101', '2022-02-10', 'Premium', 'Gold', 'credit_card', TRUE, 'social_media'),
-('David Brown', 'david.brown@email.com', '+1-555-2005', '1982-09-25', 'Male', 'USA', 'Central', 'Chicago', '60601', '2022-02-20', 'Premium', 'Platinum', 'credit_card', TRUE, 'organic'),
-('Jennifer Garcia', 'jennifer.garcia@email.com', '+1-555-2006', '1988-12-30', 'Female', 'USA', 'West', 'Seattle', '98101', '2022-03-01', 'Premium', 'Gold', 'credit_card', TRUE, 'referral'),
-('Robert Martinez', 'robert.martinez@email.com', '+1-555-2007', '1986-04-12', 'Male', 'USA', 'South', 'Miami', '33101', '2022-03-15', 'Premium', 'Silver', 'paypal', TRUE, 'social_media'),
-('Lisa Rodriguez', 'lisa.rodriguez@email.com', '+1-555-2008', '1991-08-19', 'Female', 'USA', 'South', 'Houston', '77001', '2022-04-01', 'Premium', 'Gold', 'credit_card', TRUE, 'organic'),
-('William Taylor', 'william.taylor@email.com', '+1-555-2009', '1984-02-28', 'Male', 'USA', 'East', 'Philadelphia', '19101', '2022-04-10', 'Premium', 'Platinum', 'credit_card', TRUE, 'referral'),
-('Mary Thomas', 'mary.thomas@email.com', '+1-555-2010', '1989-06-14', 'Female', 'USA', 'West', 'Portland', '97201', '2022-05-01', 'Premium', 'Gold', 'credit_card', TRUE, 'organic'),
-
--- Standard US Customers
-('James Wilson', 'james.wilson@email.com', '+1-555-3001', '1992-01-20', 'Male', 'USA', 'West', 'San Diego', '92101', '2022-06-01', 'Standard', 'Silver', 'credit_card', TRUE, 'social_media'),
-('Patricia Moore', 'patricia.moore@email.com', '+1-555-3002', '1986-10-05', 'Female', 'USA', 'East', 'Washington', '20001', '2022-06-15', 'Standard', 'Bronze', 'paypal', FALSE, 'organic'),
-('Christopher Lee', 'christopher.lee@email.com', '+1-555-3003', '1993-03-18', 'Male', 'USA', 'South', 'Dallas', '75201', '2022-07-01', 'Standard', 'Silver', 'credit_card', TRUE, 'referral'),
-('Linda White', 'linda.white@email.com', '+1-555-3004', '1988-07-22', 'Female', 'USA', 'Central', 'Minneapolis', '55401', '2022-07-15', 'Standard', 'Bronze', 'credit_card', FALSE, 'social_media'),
-('Daniel Harris', 'daniel.harris@email.com', '+1-555-3005', '1990-11-11', 'Male', 'USA', 'West', 'Phoenix', '85001', '2022-08-01', 'Standard', 'Silver', 'paypal', TRUE, 'organic'),
-('Barbara Martin', 'barbara.martin@email.com', '+1-555-3006', '1985-05-30', 'Female', 'USA', 'East', 'Atlanta', '30301', '2022-08-15', 'Standard', 'Silver', 'credit_card', TRUE, 'referral'),
-('Matthew Thompson', 'matthew.thompson@email.com', '+1-555-3007', '1991-09-08', 'Male', 'USA', 'West', 'Denver', '80201', '2022-09-01', 'Standard', 'Bronze', 'credit_card', FALSE, 'social_media'),
-('Susan Jackson', 'susan.jackson@email.com', '+1-555-3008', '1987-12-15', 'Female', 'USA', 'South', 'Austin', '78701', '2022-09-15', 'Standard', 'Silver', 'paypal', TRUE, 'organic'),
-('Joseph White', 'joseph.white@email.com', '+1-555-3009', '1989-04-25', 'Male', 'USA', 'East', 'Charlotte', '28201', '2022-10-01', 'Standard', 'Bronze', 'credit_card', FALSE, 'referral'),
-('Nancy Lopez', 'nancy.lopez@email.com', '+1-555-3010', '1992-08-03', 'Female', 'USA', 'West', 'Las Vegas', '89101', '2022-10-15', 'Standard', 'Silver', 'credit_card', TRUE, 'social_media');
-
--- Basic US Customers
-INSERT INTO customers (customer_name, email, phone, country, region, city, signup_date, customer_segment, loyalty_tier, preferred_payment_method, marketing_consent, referral_source)
-SELECT
-    'Customer ' || i,
-    'customer' || i || '@email.com',
-    '+1-555-' || (4000 + i),
-    'USA',
-    CASE (i % 4)
-        WHEN 0 THEN 'East'
-        WHEN 1 THEN 'West'
-        WHEN 2 THEN 'Central'
-        ELSE 'South'
-    END,
-    CASE (i % 10)
-        WHEN 0 THEN 'New York'
-        WHEN 1 THEN 'Los Angeles'
-        WHEN 2 THEN 'Chicago'
-        WHEN 3 THEN 'Houston'
-        WHEN 4 THEN 'Phoenix'
-        WHEN 5 THEN 'Philadelphia'
-        WHEN 6 THEN 'San Antonio'
-        WHEN 7 THEN 'San Diego'
-        WHEN 8 THEN 'Dallas'
-        ELSE 'San Jose'
-    END,
-    '2023-01-01'::DATE + (i || ' days')::INTERVAL,
-    'Basic',
-    CASE (i % 3)
-        WHEN 0 THEN 'Bronze'
-        WHEN 1 THEN 'Silver'
-        ELSE 'Bronze'
-    END,
-    CASE (i % 3)
-        WHEN 0 THEN 'credit_card'
-        WHEN 1 THEN 'paypal'
-        ELSE 'bank_transfer'
-    END,
-    (i % 2 = 0),
-    CASE (i % 4)
-        WHEN 0 THEN 'organic'
-        WHEN 1 THEN 'social_media'
-        WHEN 2 THEN 'referral'
-        ELSE 'email'
-    END
-FROM generate_series(21, 100) AS i;
-
--- International customers
-INSERT INTO customers (customer_name, email, phone, country, region, city, signup_date, customer_segment, loyalty_tier, preferred_payment_method, marketing_consent) VALUES
-('Oliver Smith', 'oliver.smith@email.co.uk', '+44-20-7123-4501', 'UK', 'South', 'London', '2023-01-15', 'Premium', 'Gold', 'credit_card', TRUE),
-('Emma Thompson', 'emma.thompson@email.co.uk', '+44-161-555-0101', 'UK', 'North', 'Manchester', '2023-02-01', 'Standard', 'Silver', 'paypal', TRUE),
-('James Brown', 'james.brown@email.co.uk', '+44-121-555-0102', 'UK', 'Midlands', 'Birmingham', '2023-02-15', 'Basic', 'Bronze', 'credit_card', FALSE),
-('Sophie Clark', 'sophie.clark@email.co.uk', '+44-131-555-0103', 'UK', 'Scotland', 'Edinburgh', '2023-03-01', 'Standard', 'Silver', 'credit_card', TRUE),
-('Harry Davies', 'harry.davies@email.co.uk', '+44-117-555-0104', 'UK', 'South West', 'Bristol', '2023-03-15', 'Premium', 'Gold', 'credit_card', TRUE),
-('Pierre Dubois', 'pierre.dubois@email.ca', '+1-514-555-0201', 'Canada', 'Quebec', 'Montreal', '2023-01-20', 'Standard', 'Silver', 'credit_card', TRUE),
-('Anna Kowalski', 'anna.kowalski@email.ca', '+1-416-555-0202', 'Canada', 'Ontario', 'Toronto', '2023-02-05', 'Premium', 'Platinum', 'credit_card', TRUE),
-('Ryan Chen', 'ryan.chen@email.ca', '+1-604-555-0203', 'Canada', 'BC', 'Vancouver', '2023-02-20', 'Standard', 'Silver', 'paypal', TRUE),
-('Sophie Tremblay', 'sophie.tremblay@email.ca', '+1-403-555-0204', 'Canada', 'Alberta', 'Calgary', '2023-03-10', 'Basic', 'Bronze', 'credit_card', FALSE),
-('Lucas Martin', 'lucas.martin@email.ca', '+1-613-555-0205', 'Canada', 'Ontario', 'Ottawa', '2023-04-01', 'Standard', 'Silver', 'credit_card', TRUE);
-
--- Add 40 more international customers
-INSERT INTO customers (customer_name, email, country, region, city, signup_date, customer_segment, loyalty_tier, preferred_payment_method, marketing_consent)
-SELECT
-    'IntlCustomer ' || i,
-    'intl' || i || '@email.com',
-    CASE (i % 3)
-        WHEN 0 THEN 'UK'
-        WHEN 1 THEN 'Canada'
-        ELSE 'Australia'
-    END,
-    'International',
-    CASE (i % 5)
-        WHEN 0 THEN 'London'
-        WHEN 1 THEN 'Toronto'
-        WHEN 2 THEN 'Sydney'
-        WHEN 3 THEN 'Vancouver'
-        ELSE 'Melbourne'
-    END,
-    '2023-05-01'::DATE + (i || ' days')::INTERVAL,
-    CASE (i % 3)
-        WHEN 0 THEN 'Premium'
-        WHEN 1 THEN 'Standard'
-        ELSE 'Basic'
-    END,
-    CASE (i % 4)
-        WHEN 0 THEN 'Platinum'
-        WHEN 1 THEN 'Gold'
-        WHEN 2 THEN 'Silver'
-        ELSE 'Bronze'
-    END,
-    'credit_card',
-    (i % 2 = 0)
-FROM generate_series(111, 150) AS i;
+INSERT INTO exchanges (name, type, country, website_url, api_available, trading_fee_percentage, volume_24h_usd, trust_score, status, launched_date) VALUES
+('Binance', 'centralized', 'Malta', 'https://www.binance.com', true, 0.1000, 75000000000, 10, 'active', '2017-07-14'),
+('Coinbase', 'centralized', 'United States', 'https://www.coinbase.com', true, 0.5000, 12000000000, 9, 'active', '2012-06-01'),
+('Kraken', 'centralized', 'United States', 'https://www.kraken.com', true, 0.1600, 5000000000, 9, 'active', '2011-07-28'),
+('Uniswap', 'decentralized', 'Global', 'https://uniswap.org', true, 0.3000, 2500000000, 8, 'active', '2018-11-02'),
+('PancakeSwap', 'decentralized', 'Global', 'https://pancakeswap.finance', true, 0.2500, 1800000000, 7, 'active', '2020-09-20'),
+('OKX', 'centralized', 'Seychelles', 'https://www.okx.com', true, 0.1000, 8000000000, 9, 'active', '2017-12-01'),
+('Bybit', 'centralized', 'Dubai', 'https://www.bybit.com', true, 0.1000, 6500000000, 8, 'active', '2018-03-01'),
+('KuCoin', 'centralized', 'Seychelles', 'https://www.kucoin.com', true, 0.1000, 3500000000, 8, 'active', '2017-09-15'),
+('Huobi Global', 'centralized', 'Seychelles', 'https://www.huobi.com', true, 0.2000, 2800000000, 8, 'active', '2013-09-01'),
+('SushiSwap', 'decentralized', 'Global', 'https://sushi.com', true, 0.3000, 800000000, 7, 'active', '2020-08-28');
 
 -- =====================================================
--- PROMOTIONS
+-- 9. EXCHANGE LISTINGS
 -- =====================================================
 
-INSERT INTO promotions (promotion_name, promotion_code, description, discount_type, discount_value, min_purchase_amount, start_date, end_date, usage_limit, created_by) VALUES
-('New Year 2023', 'NEWYEAR2023', '15% off all orders', 'percentage', 15.00, 50.00, '2023-01-01', '2023-01-31', 1000, 8),
-('Spring Sale', 'SPRING2023', '$25 off orders over $150', 'fixed_amount', 25.00, 150.00, '2023-03-01', '2023-03-31', 500, 8),
-('Summer Savings', 'SUMMER2023', '20% off electronics', 'percentage', 20.00, 100.00, '2023-06-01', '2023-08-31', 750, 8),
-('Back to School', 'SCHOOL2023', '$30 off $200+', 'fixed_amount', 30.00, 200.00, '2023-08-01', '2023-09-15', 400, 8),
-('Black Friday', 'BFRIDAY2023', '30% off everything', 'percentage', 30.00, 75.00, '2023-11-24', '2023-11-26', 2000, 8),
-('Cyber Monday', 'CYBERMON2023', '25% off tech products', 'percentage', 25.00, 100.00, '2023-11-27', '2023-11-27', 1500, 8),
-('Holiday Season', 'HOLIDAY2023', '$50 off $300+', 'fixed_amount', 50.00, 300.00, '2023-12-01', '2023-12-31', 1000, 8),
-('New Year 2024', 'NEWYEAR2024', '20% off sitewide', 'percentage', 20.00, 100.00, '2024-01-01', '2024-01-31', 1200, 8),
-('Valentine Special', 'VALENTINE24', 'Free shipping on all orders', 'free_shipping', 0.00, 50.00, '2024-02-10', '2024-02-14', 800, 8),
-('Spring Flash', 'SPRING24', '$40 off $250+', 'fixed_amount', 40.00, 250.00, '2024-03-15', '2024-03-31', 600, 8),
-('Earth Day', 'EARTHDAY24', '15% off eco products', 'percentage', 15.00, 75.00, '2024-04-20', '2024-04-25', 300, 8),
-('Mother''s Day', 'MOMSDAY24', '$20 off $150+', 'fixed_amount', 20.00, 150.00, '2024-05-08', '2024-05-12', 500, 8),
-('Summer Kickoff', 'SUMMERKICK24', '18% off outdoor gear', 'percentage', 18.00, 100.00, '2024-05-25', '2024-06-10', 450, 8),
-('Prime Day', 'PRIMEDAY24', '35% off selected items', 'percentage', 35.00, 50.00, '2024-07-15', '2024-07-16', 2500, 8),
-('Labor Day', 'LABORDAY24', '$35 off $200+', 'fixed_amount', 35.00, 200.00, '2024-09-01', '2024-09-03', 700, 8);
+INSERT INTO exchange_listings (exchange_id, token_id, listing_date, is_active, volume_24h, volume_24h_usd) VALUES
+-- Binance listings
+(1, 1, '2017-07-14', true, 25678.90, 2282345678),
+(1, 2, '2017-07-14', true, 6789012.34, 26545678901),
+(1, 3, '2017-11-01', true, 45000000000, 45000000000),
+(1, 4, '2017-07-25', true, 1456789.01, 902345678),
+(1, 5, '2020-04-10', true, 4567890.12, 670234567),
+-- Coinbase listings
+(2, 1, '2012-06-01', true, 5678.90, 505678901),
+(2, 2, '2016-05-21', true, 1234567.89, 4823456789),
+(2, 3, '2018-11-05', true, 12000000000, 12000000000),
+(2, 4, '2019-06-13', true, 234567.89, 145234567),
+(2, 5, '2021-06-08', true, 890123.45, 130678901),
+-- Uniswap DEX
+(4, 2, '2018-11-02', true, 2345678.90, 9167890123),
+(4, 6, '2020-09-01', true, 15000000000, 15000000000),
+(4, 12, '2019-09-17', true, 5678901.23, 90234567),
+(4, 13, '2020-09-17', true, 12345678.90, 123567890),
+(4, 14, '2020-10-02', true, 234567.89, 70987654);
 
 -- =====================================================
--- ORDERS (800+ orders from 2023-2024)
+-- 10. TRADING PAIRS
 -- =====================================================
 
--- Helper function to generate random order data
-DO $$
-DECLARE
-    order_count INTEGER := 0;
-    cust_id INTEGER;
-    emp_id INTEGER;
-    wh_id INTEGER;
-    order_dt TIMESTAMP;
-    total DECIMAL(10,2);
-    promo_id INTEGER;
-BEGIN
-    -- Generate orders throughout 2023-2024
-    FOR order_count IN 1..800 LOOP
-        -- Random customer (weighted towards first 50 customers who order more)
-        IF random() < 0.6 THEN
-            cust_id := (random() * 49 + 1)::INTEGER;
-        ELSE
-            cust_id := (random() * 149 + 1)::INTEGER;
-        END IF;
-
-        -- Random sales employee (1-7 are sales)
-        emp_id := (random() * 6 + 1)::INTEGER;
-
-        -- Random warehouse
-        wh_id := (random() * 4 + 1)::INTEGER;
-
-        -- Order date spread across last ~2 years up to current date
-        order_dt := (CURRENT_DATE - INTERVAL '700 days') + (random() * 700 || ' days')::INTERVAL + (random() * 86400 || ' seconds')::INTERVAL;
-
-        -- Random total amount
-        total := (50 + random() * 2000)::DECIMAL(10,2);
-
-        INSERT INTO orders (
-            order_number,
-            customer_id,
-            employee_id,
-            warehouse_id,
-            order_date,
-            order_status,
-            total_amount,
-            discount_amount,
-            tax_amount,
-            shipping_cost,
-            payment_method,
-            payment_status,
-            shipping_country,
-            shipping_region,
-            expected_delivery_date,
-            actual_delivery_date
-        ) VALUES (
-            'ORD-' || TO_CHAR(order_dt, 'YYYY') || '-' || LPAD(order_count::TEXT, 6, '0'),
-            cust_id,
-            emp_id,
-            wh_id,
-            order_dt,
-            CASE (random() * 100)::INTEGER
-                WHEN 0 THEN 'cancelled'
-                WHEN 1 THEN 'refunded'
-                WHEN 2 THEN 'pending'
-                WHEN 3 THEN 'pending'
-                WHEN 4 THEN 'pending'
-                WHEN 5 THEN 'processing'
-                WHEN 6 THEN 'processing'
-                WHEN 7 THEN 'processing'
-                WHEN 8 THEN 'processing'
-                WHEN 9 THEN 'shipped'
-                WHEN 10 THEN 'shipped'
-                WHEN 11 THEN 'shipped'
-                WHEN 12 THEN 'shipped'
-                WHEN 13 THEN 'shipped'
-                ELSE 'delivered'
-            END,
-            total,
-            (total * random() * 0.15)::DECIMAL(10,2), -- 0-15% discount
-            (total * 0.08)::DECIMAL(10,2), -- 8% tax
-            CASE (random() * 3)::INTEGER
-                WHEN 0 THEN 10.00
-                WHEN 1 THEN 15.00
-                ELSE 20.00
-            END,
-            CASE (random() * 3)::INTEGER
-                WHEN 0 THEN 'credit_card'
-                WHEN 1 THEN 'paypal'
-                ELSE 'bank_transfer'
-            END,
-            CASE (random() * 20)::INTEGER
-                WHEN 0 THEN 'failed'
-                WHEN 1 THEN 'pending'
-                ELSE 'completed'
-            END,
-            CASE (cust_id % 3)
-                WHEN 0 THEN 'USA'
-                WHEN 1 THEN 'UK'
-                ELSE 'Canada'
-            END,
-            'Region ' || ((cust_id % 5) + 1),
-            order_dt + '5 days'::INTERVAL,
-            CASE
-                WHEN random() < 0.85 THEN order_dt + (((4 + random() * 3)::INTEGER)::TEXT || ' days')::INTERVAL
-                ELSE NULL
-            END
-        );
-    END LOOP;
-END $$;
+INSERT INTO trading_pairs (exchange_id, base_token_id, quote_token_id, pair_symbol, current_price, volume_24h, volume_24h_usd, price_change_24h, bid_price, ask_price, spread_percentage, is_active) VALUES
+-- Binance pairs
+(1, 1, 3, 'BTC/USDT', 88876.54, 25678.90, 2282345678, 0.73, 88875.21, 88877.87, 0.0030, true),
+(1, 2, 3, 'ETH/USDT', 3912.34, 6789012.34, 26545678901, 1.15, 3912.12, 3912.56, 0.0112, true),
+(1, 4, 3, 'BNB/USDT', 619.45, 1456789.01, 902345678, 1.16, 619.43, 619.47, 0.0065, true),
+(1, 5, 3, 'SOL/USDT', 146.78, 4567890.12, 670234567, 2.24, 146.76, 146.80, 0.0272, true),
+(1, 2, 1, 'ETH/BTC', 0.0440, 345678.90, 1519234567, 0.42, 0.0440, 0.0441, 0.0227, true),
+-- Coinbase pairs
+(2, 1, 6, 'BTC/USDC', 88876.54, 5678.90, 505678901, 0.73, 88876.12, 88877.96, 0.0021, true),
+(2, 2, 6, 'ETH/USDC', 3912.34, 1234567.89, 4823456789, 1.15, 3912.23, 3912.45, 0.0056, true),
+(2, 4, 6, 'BNB/USDC', 619.45, 234567.89, 145234567, 1.16, 619.42, 619.48, 0.0097, true),
+-- Uniswap pairs (DEX)
+(4, 2, 6, 'ETH/USDC', 3912.34, 2345678.90, 9167890123, 1.15, 3911.89, 3912.79, 0.0230, true),
+(4, 12, 2, 'LINK/ETH', 0.0041, 567890.12, 90234567, 0.25, 0.0041, 0.0041, 0.0244, true),
+(4, 13, 2, 'UNI/ETH', 0.0026, 1234567.89, 123567890, 0.27, 0.0026, 0.0026, 0.0192, true);
 
 -- =====================================================
--- ORDER ITEMS (2-5 items per order)
+-- 11. WALLETS
 -- =====================================================
 
-DO $$
-DECLARE
-    ord_id INTEGER;
-    num_items INTEGER;
-    item_count INTEGER;
-    prod_id INTEGER;
-    qty INTEGER;
-    unit_pr DECIMAL(10,2);
-BEGIN
-    FOR ord_id IN 1..800 LOOP
-        num_items := (random() * 4 + 1)::INTEGER; -- 1-5 items per order
-
-        FOR item_count IN 1..num_items LOOP
-            prod_id := (random() * 99 + 1)::INTEGER; -- Random product from first 100
-            qty := (random() * 4 + 1)::INTEGER; -- 1-5 quantity
-
-            SELECT price INTO unit_pr FROM products WHERE product_id = prod_id;
-
-            INSERT INTO order_items (
-                order_id,
-                product_id,
-                quantity,
-                unit_price,
-                discount_amount,
-                tax_amount,
-                subtotal,
-                cost_at_time
-            )
-            SELECT
-                ord_id,
-                prod_id,
-                qty,
-                unit_pr,
-                (unit_pr * qty * random() * 0.1)::DECIMAL(10,2),
-                (unit_pr * qty * 0.08)::DECIMAL(10,2),
-                (unit_pr * qty)::DECIMAL(10,2),
-                cost
-            FROM products WHERE product_id = prod_id;
-        END LOOP;
-    END LOOP;
-END $$;
+INSERT INTO wallets (user_id, wallet_address, blockchain_id, wallet_type, label, is_active) VALUES
+(1, '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1', 1, 'non-custodial', 'Main Wallet', true),
+(1, 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', 2, 'hardware', 'Cold Storage', true),
+(2, '0x8Ba1f109551bD432803012645Ac136ddd64DBA72', 1, 'non-custodial', 'Trading Wallet', true),
+(3, '0x1234567890123456789012345678901234567890', 1, 'non-custodial', 'DeFi Wallet', true),
+(3, 'DsUwMxDrhq8xn4Nzz9vGLW6WrGvhCqxJtBMq2X5Hq2T1', 4, 'non-custodial', 'Solana Main', true),
+(4, 'bc1qa5wkgaew2dkv56kfvj49j0av5nml45x9ek9hz6', 2, 'hardware', 'BTC Only', true),
+(5, '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', 1, 'non-custodial', 'ETH Holder', true),
+(6, '0xaabbccddaabbccddaabbccddaabbccddaabbccdd', 1, 'custodial', 'Exchange Wallet', true),
+(7, '0x9876543210987654321098765432109876543210', 1, 'non-custodial', 'Day Trading', true),
+(8, 'addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', 7, 'non-custodial', 'Cardano Staking', true),
+(9, '0xfedcbafedcbafedcbafedcbafedcbafedcbafed', 1, 'non-custodial', 'NFT Wallet', true),
+(10, '0x1111222233334444555566667777888899990000', 1, 'custodial', 'Yield Farming', true),
+(11, '0x0000111122223333444455556666777788889999', 1, 'custodial', 'Newbie Wallet', true),
+(12, 'HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH', 4, 'non-custodial', 'Solana Trading', true),
+(13, '0xaaaa1111bbbb2222cccc3333dddd4444eeee5555', 1, 'hardware', 'Long Term Hold', true),
+(14, '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef', 1, 'non-custodial', 'Arbitrage Bot', true),
+(15, '0xcafebabecafebabecafebabecafebabecafebabe', 1, 'non-custodial', 'VIP Wallet', true);
 
 -- =====================================================
--- ORDER PROMOTIONS (Apply promotions to ~20% of orders)
+-- 12. WALLET BALANCES
 -- =====================================================
 
-INSERT INTO order_promotions (order_id, promotion_id, discount_applied)
-SELECT
-    o.order_id,
-    (random() * 14 + 1)::INTEGER,
-    (o.total_amount * (0.05 + random() * 0.20))::DECIMAL(10,2)
-FROM orders o
-WHERE random() < 0.20
-LIMIT 160;
+INSERT INTO wallet_balances (wallet_id, token_id, balance, available_balance, locked_balance) VALUES
+-- Whale's balances
+(1, 2, 5234.56789012, 5000.00000000, 234.56789012),
+(1, 3, 8500000.00, 8500000.00, 0.00),
+(2, 1, 125.45678901, 125.45678901, 0.00),
+-- HODL master
+(3, 1, 8.56789012, 7.56789012, 1.00000000),
+(3, 2, 345.67890123, 300.00000000, 45.67890123),
+-- DeFi trader
+(4, 2, 890.12345678, 800.00000000, 90.12345678),
+(4, 6, 1250000.00, 1250000.00, 0.00),
+(4, 13, 25000.00000000, 20000.00000000, 5000.00000000),
+-- BTC maximalist
+(6, 1, 3.45678901, 3.45678901, 0.00),
+-- ETH enthusiast
+(7, 2, 456.78901234, 456.78901234, 0.00),
+(7, 12, 5000.00000000, 4500.00000000, 500.00000000),
+-- Altcoin hunter
+(8, 5, 850.12345678, 800.00000000, 50.12345678),
+(8, 7, 150000.00000000, 150000.00000000, 0.00),
+-- Day trader
+(9, 2, 1234.56789012, 1000.00000000, 234.56789012),
+(9, 3, 2500000.00, 2500000.00, 0.00),
+(9, 4, 4500.00000000, 4000.00000000, 500.00000000),
+-- Staking rewards
+(10, 7, 95000.00000000, 0.00000000, 95000.00000000),
+(10, 8, 2000.00000000, 0.00000000, 2000.00000000),
+-- NFT collector
+(11, 2, 234.56789012, 200.00000000, 34.56789012),
+(11, 20, 100000.00000000, 100000.00000000, 0.00000000),
+-- Yield farmer
+(12, 14, 500.00000000, 0.00000000, 500.00000000),
+(12, 6, 450000.00, 450000.00, 0.00),
+-- Newbie
+(13, 1, 0.05678901, 0.05678901, 0.00),
+(13, 2, 1.23456789, 1.23456789, 0.00);
 
 -- =====================================================
--- PAYMENT TRANSACTIONS (One per order)
+-- 13. TOKEN HOLDINGS (Snapshots)
 -- =====================================================
 
-INSERT INTO payment_transactions (
-    order_id,
-    transaction_reference,
-    payment_method,
-    payment_provider,
-    amount,
-    status,
-    transaction_date,
-    processed_date,
-    provider_fee
-)
-SELECT
-    order_id,
-    'TXN-' || order_number,
-    payment_method,
-    CASE payment_method
-        WHEN 'credit_card' THEN 'Stripe'
-        WHEN 'paypal' THEN 'PayPal'
-        ELSE 'Bank Transfer'
-    END,
-    total_amount,
-    payment_status,
-    order_date,
-    order_date + '2 hours'::INTERVAL,
-    (total_amount * 0.029 + 0.30)::DECIMAL(10,2) -- Typical payment processing fee
-FROM orders;
+INSERT INTO token_holdings (user_id, token_id, snapshot_date, total_balance, balance_usd, average_buy_price, unrealized_pnl, realized_pnl) VALUES
+-- Latest holdings (today)
+(1, 2, '2025-11-20', 5234.56789012, 20474567.89, 3500.00, 2157234.56, 450000.00),
+(1, 3, '2025-11-20', 8500000.00, 8500000.00, 1.00, 0.00, 0.00),
+(2, 1, '2025-11-20', 8.56789012, 761234.56, 82000.00, 58901.23, 12000.00),
+(2, 2, '2025-11-20', 345.67890123, 1352345.67, 3400.00, 177123.45, 34567.89),
+(3, 2, '2025-11-20', 890.12345678, 3482345.67, 3600.00, 277890.12, 89012.34),
+(3, 6, '2025-11-20', 1250000.00, 1250000.00, 1.00, 0.00, 0.00),
+(4, 1, '2025-11-20', 3.45678901, 307234.56, 85000.00, 13456.78, 0.00),
+(5, 2, '2025-11-20', 456.78901234, 1787123.45, 3700.00, 96890.12, 23456.78),
+(6, 5, '2025-11-20', 850.12345678, 124789.01, 135.00, 10012.34, 2345.67),
+(7, 2, '2025-11-20', 1234.56789012, 4829456.78, 3500.00, 509123.45, 123456.78),
+(8, 7, '2025-11-20', 95000.00000000, 54995500.00, 0.50, 9505000.00, 0.00),
+-- Historical snapshot (1 week ago)
+(1, 2, '2025-11-13', 5234.56789012, 18867890.12, 3500.00, 1378901.23, 450000.00),
+(2, 1, '2025-11-13', 8.56789012, 721456.78, 82000.00, 19123.45, 12000.00),
+(3, 2, '2025-11-13', 890.12345678, 3205678.90, 3600.00, 98567.89, 89012.34);
 
 -- =====================================================
--- SHIPMENTS (For non-cancelled orders)
+-- 14. TRANSACTIONS
 -- =====================================================
 
-INSERT INTO shipments (
-    order_id,
-    warehouse_id,
-    tracking_number,
-    carrier,
-    shipping_method,
-    shipment_status,
-    ship_date,
-    estimated_delivery,
-    actual_delivery,
-    weight_kg,
-    shipping_cost
-)
-SELECT
-    o.order_id,
-    o.warehouse_id,
-    'TRACK-' || o.order_number,
-    CASE (o.order_id % 4)
-        WHEN 0 THEN 'FedEx'
-        WHEN 1 THEN 'UPS'
-        WHEN 2 THEN 'USPS'
-        ELSE 'DHL'
-    END,
-    CASE (o.order_id % 3)
-        WHEN 0 THEN 'standard'
-        WHEN 1 THEN 'express'
-        ELSE 'overnight'
-    END,
-    CASE o.order_status
-        WHEN 'delivered' THEN 'delivered'
-        WHEN 'shipped' THEN 'in_transit'
-        WHEN 'processing' THEN 'packed'
-        ELSE 'pending'
-    END,
-    o.order_date + '1 day'::INTERVAL,
-    o.expected_delivery_date,
-    o.actual_delivery_date,
-    (2.0 + random() * 15)::DECIMAL(8,3),
-    o.shipping_cost
-FROM orders o
-WHERE o.order_status NOT IN ('cancelled', 'refunded');
+INSERT INTO transactions (user_id, from_wallet_id, to_wallet_id, token_id, transaction_type, amount, price_per_token, total_value_usd, fee, fee_usd, transaction_hash, blockchain_id, exchange_id, status, timestamp) VALUES
+-- Recent buy transactions
+(1, NULL, 1, 2, 'buy', 50.00000000, 3867.89, 193394.50, 0.15000000, 580.18, '0xabc123def456ghi789jkl012mno345pqr678stu901vwx234yz', 1, 1, 'completed', '2025-11-19 14:30:00'),
+(2, NULL, 3, 1, 'buy', 0.25000000, 87543.21, 21885.80, 0.00025000, 21.89, '0x111222333444555666777888999000aaabbbcccdddeeefff000', 2, 2, 'completed', '2025-11-19 10:15:00'),
+(3, NULL, 4, 2, 'buy', 100.00000000, 3823.45, 382345.00, 0.30000000, 1147.04, '0x123abc456def789ghi012jkl345mno678pqr901stu234vwx567', 1, 1, 'completed', '2025-11-18 16:45:00'),
+-- Sell transactions
+(7, 9, NULL, 2, 'sell', 25.00000000, 3912.34, 97808.50, 0.07500000, 293.43, '0xfedcba9876543210fedcba9876543210fedcba9876543210fedc', 1, 1, 'completed', '2025-11-20 09:00:00'),
+(5, 7, NULL, 12, 'sell', 500.00000000, 15.89, 7945.00, 1.50000000, 23.84, '0x999888777666555444333222111000fffeeedddc
+ccbbbaaa9998', 1, 2, 'completed', '2025-11-19 11:30:00'),
+-- Transfer transactions
+(1, 1, 3, 3, 'transfer', 100000.00, 1.00, 100000.00, 5.00, 5.00, '0xabcdef1234567890abcdef1234567890abcdef1234567890abcd', 1, NULL, 'completed', '2025-11-18 13:20:00'),
+(15, 16, 4, 6, 'transfer', 50000.00, 1.00, 50000.00, 2.50, 2.50, '0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z', 1, NULL, 'completed', '2025-11-17 10:45:00'),
+-- Swap transactions (DEX)
+(3, 4, 4, 2, 'swap', 10.00000000, 3734.56, 37345.60, 0.03000000, 112.04, '0xswap1234567890abcdefswap1234567890abcdefswap12345678', 1, 4, 'completed', '2025-11-17 15:30:00'),
+(10, 12, 12, 14, 'swap', 50.00000000, 298.45, 14922.50, 0.15000000, 44.77, '0xswapabcdef1234567890swapabcdef1234567890swapabcdef12', 1, 4, 'completed', '2025-11-16 12:00:00'),
+-- Staking transactions
+(8, 10, NULL, 7, 'stake', 50000.00000000, 0.5678, 28390.00, 0.00000000, 0.00, '0xstake123456789abcdefstake123456789abcdefstake1234567', 7, NULL, 'completed', '2025-11-15 09:00:00'),
+(8, 10, NULL, 8, 'stake', 1000.00000000, 34.56, 34560.00, 0.00000000, 0.00, '0xstakeabcdef123456789stakeabcdef123456789stakeabcdef1', 6, NULL, 'completed', '2025-11-14 14:30:00'),
+-- Pending transactions
+(11, 13, NULL, 2, 'buy', 0.50000000, 3912.34, 1956.17, 0.00150000, 5.87, '0xpending123456789abcdefpending123456789abcdefpending12', 1, 2, 'pending', '2025-11-20 10:30:00');
 
 -- =====================================================
--- SHIPMENT TRACKING (3-5 events per shipment)
+-- 15. STAKING RECORDS
 -- =====================================================
 
-DO $$
-DECLARE
-    ship_rec RECORD;
-    num_events INTEGER;
-    event_num INTEGER;
-    event_dt TIMESTAMP;
-BEGIN
-    FOR ship_rec IN SELECT shipment_id, ship_date, estimated_delivery FROM shipments LIMIT 200 LOOP
-        num_events := (random() * 3 + 2)::INTEGER; -- 2-5 events
-
-        FOR event_num IN 1..num_events LOOP
-            event_dt := ship_rec.ship_date + ((event_num - 1) || ' days')::INTERVAL;
-
-            INSERT INTO shipment_tracking (
-                shipment_id,
-                location,
-                status,
-                description,
-                event_date
-            ) VALUES (
-                ship_rec.shipment_id,
-                CASE event_num
-                    WHEN 1 THEN 'Origin Facility'
-                    WHEN 2 THEN 'In Transit'
-                    WHEN 3 THEN 'Sorting Facility'
-                    WHEN 4 THEN 'Out for Delivery'
-                    ELSE 'Delivered'
-                END,
-                CASE event_num
-                    WHEN 1 THEN 'Picked up'
-                    WHEN 2 THEN 'In transit'
-                    WHEN 3 THEN 'Arrived at facility'
-                    WHEN 4 THEN 'Out for delivery'
-                    ELSE 'Delivered'
-                END,
-                'Package ' || CASE event_num
-                    WHEN 1 THEN 'picked up from warehouse'
-                    WHEN 2 THEN 'in transit to destination'
-                    WHEN 3 THEN 'arrived at sorting facility'
-                    WHEN 4 THEN 'out for delivery'
-                    ELSE 'delivered to customer'
-                END,
-                event_dt
-            );
-        END LOOP;
-    END LOOP;
-END $$;
+INSERT INTO staking_records (user_id, token_id, staked_amount, staking_period_days, apr_percentage, rewards_earned, rewards_earned_usd, start_date, end_date, status) VALUES
+-- Active staking
+(8, 7, 95000.00000000, NULL, 4.5000, 1234.56789012, 714.67, '2025-10-15 09:00:00', NULL, 'active'),
+(8, 8, 2000.00000000, 90, 8.7500, 43.21098765, 1521.34, '2025-11-01 14:30:00', NULL, 'active'),
+(2, 2, 45.67890123, NULL, 3.2500, 0.12345678, 482.56, '2025-09-20 10:00:00', NULL, 'active'),
+(10, 14, 500.00000000, 180, 12.5000, 8.56789012, 2592.34, '2025-08-15 11:00:00', NULL, 'active'),
+(13, 7, 5000.00000000, 30, 3.5000, 14.38356164, 8.32, '2025-11-10 16:00:00', NULL, 'active'),
+-- Completed staking
+(5, 2, 100.00000000, 90, 4.0000, 0.98630137, 3856.78, '2025-08-01 10:00:00', '2025-10-30 10:00:00', 'completed'),
+(12, 8, 500.00000000, 60, 7.5000, 6.16438356, 216.78, '2025-09-15 12:00:00', '2025-11-14 12:00:00', 'completed'),
+-- Withdrawn
+(6, 7, 20000.00000000, 60, 4.2500, 139.72602740, 80.89, '2025-09-01 09:00:00', '2025-10-31 09:00:00', 'withdrawn');
 
 -- =====================================================
--- REVIEWS (100+ reviews)
+-- 16. LIQUIDITY POOLS
 -- =====================================================
 
-INSERT INTO reviews (product_id, customer_id, order_id, rating, title, review_text, is_verified_purchase, helpful_count, is_approved)
-SELECT
-    (random() * 99 + 1)::INTEGER,
-    (random() * 49 + 1)::INTEGER,
-    (random() * 799 + 1)::INTEGER,
-    (random() * 5)::INTEGER + 1, -- 1-5 stars
-    CASE (random() * 5)::INTEGER
-        WHEN 0 THEN 'Great product!'
-        WHEN 1 THEN 'Excellent quality'
-        WHEN 2 THEN 'Good value'
-        WHEN 3 THEN 'As expected'
-        ELSE 'Satisfied with purchase'
-    END,
-    'This product ' || CASE (random() * 3)::INTEGER
-        WHEN 0 THEN 'exceeded my expectations. Highly recommend!'
-        WHEN 1 THEN 'was exactly what I needed. Good quality.'
-        ELSE 'met my needs. Would buy again.'
-    END,
-    TRUE,
-    (random() * 50)::INTEGER,
-    TRUE
-FROM generate_series(1, 150);
+INSERT INTO liquidity_pools (pool_name, protocol, blockchain_id, token_a_id, token_b_id, token_a_reserve, token_b_reserve, total_liquidity_usd, volume_24h_usd, fee_percentage, apy_percentage, is_active) VALUES
+('ETH-USDC', 'Uniswap V3', 1, 2, 6, 1234567.89012345, 4823456789.01, 9646913578, 2456789012, 0.3000, 12.4500, true),
+('ETH-USDT', 'Uniswap V3', 1, 2, 3, 2345678.90123456, 9178901234.56, 18357802469, 3567890123, 0.3000, 11.8900, true),
+('BTC-USDT', 'PancakeSwap V2', 3, 11, 3, 12345.67890123, 1097234567.89, 2194469136, 892345678, 0.2500, 8.7600, true),
+('ETH-BTC', 'Uniswap V3', 1, 2, 11, 234567.89012345, 2.98765432, 1835678901, 456789012, 0.3000, 9.3400, true),
+('BNB-USDT', 'PancakeSwap V2', 3, 4, 3, 1234567.89, 764567890.12, 1529135780, 567890123, 0.2500, 14.5600, true),
+('SOL-USDC', 'Raydium', 4, 5, 6, 4567890.12, 670234567.89, 1340469136, 345678901, 0.2500, 18.9000, true),
+('AVAX-USDC', 'Trader Joe', 6, 8, 6, 1234567.89, 43456789.01, 86913578, 123456789, 0.3000, 15.6700, true),
+('MATIC-USDC', 'QuickSwap', 5, 10, 6, 12345678.90, 11123456.78, 22246914, 89012345, 0.3000, 13.4500, true),
+('LINK-ETH', 'Uniswap V2', 1, 12, 2, 567890.12, 23.45, 182901234, 45678901, 0.3000, 11.2300, true),
+('UNI-ETH', 'Uniswap V2', 1, 13, 2, 1234567.89, 3.21, 25056789, 12345678, 0.3000, 9.8900, true);
 
 -- =====================================================
--- RETURNS (50 returns)
+-- DATA VALIDATION
 -- =====================================================
 
-INSERT INTO returns (
-    order_id,
-    customer_id,
-    return_number,
-    return_date,
-    reason,
-    status,
-    refund_amount,
-    restocking_fee,
-    approved_by,
-    processed_by
-)
-SELECT
-    o.order_id,
-    o.customer_id,
-    'RET-' || o.order_number,
-    o.order_date + (10 + random() * 20)::INTEGER || ' days',
-    CASE (random() * 5)::INTEGER
-        WHEN 0 THEN 'Defective item'
-        WHEN 1 THEN 'Wrong item received'
-        WHEN 2 THEN 'No longer needed'
-        WHEN 3 THEN 'Better price elsewhere'
-        ELSE 'Did not meet expectations'
-    END,
-    CASE (random() * 4)::INTEGER
-        WHEN 0 THEN 'refunded'
-        WHEN 1 THEN 'received'
-        WHEN 2 THEN 'approved'
-        ELSE 'requested'
-    END,
-    (o.total_amount * (0.8 + random() * 0.2))::DECIMAL(10,2),
-    CASE WHEN random() < 0.3 THEN 15.00 ELSE 0.00 END,
-    12, -- CS Director
-    13  -- CS Manager
-FROM orders o
-WHERE o.order_status = 'delivered'
-    AND random() < 0.08
-LIMIT 50;
-
--- =====================================================
--- RETURN ITEMS (Matching returns)
--- =====================================================
-
-INSERT INTO return_items (
-    return_id,
-    order_item_id,
-    product_id,
-    quantity,
-    reason,
-    condition,
-    refund_amount
-)
-SELECT
-    r.return_id,
-    oi.order_item_id,
-    oi.product_id,
-    LEAST(oi.quantity, (random() * oi.quantity + 1)::INTEGER),
-    r.reason,
-    CASE (random() * 4)::INTEGER
-        WHEN 0 THEN 'new'
-        WHEN 1 THEN 'opened'
-        WHEN 2 THEN 'used'
-        ELSE 'damaged'
-    END,
-    (oi.subtotal * 0.9)::DECIMAL(10,2)
-FROM returns r
-JOIN order_items oi ON r.order_id = oi.order_id
-WHERE oi.order_item_id IN (
-    SELECT order_item_id FROM order_items WHERE order_id = r.order_id ORDER BY RANDOM() LIMIT 1
-);
-
--- =====================================================
--- CUSTOMER INTERACTIONS (100 interactions)
--- =====================================================
-
-INSERT INTO customer_interactions (
-    customer_id,
-    employee_id,
-    interaction_type,
-    subject,
-    description,
-    status,
-    priority,
-    satisfaction_rating,
-    interaction_date,
-    resolved_date
-)
-SELECT
-    (random() * 149 + 1)::INTEGER,
-    (random() * 4 + 13)::INTEGER, -- CS employees
-    CASE (random() * 4)::INTEGER
-        WHEN 0 THEN 'call'
-        WHEN 1 THEN 'email'
-        WHEN 2 THEN 'chat'
-        ELSE 'ticket'
-    END,
-    CASE (random() * 6)::INTEGER
-        WHEN 0 THEN 'Order status inquiry'
-        WHEN 1 THEN 'Product question'
-        WHEN 2 THEN 'Return request'
-        WHEN 3 THEN 'Shipping issue'
-        WHEN 4 THEN 'Payment problem'
-        ELSE 'General inquiry'
-    END,
-    'Customer contacted regarding ' || CASE (random() * 3)::INTEGER
-        WHEN 0 THEN 'order delivery status and tracking information'
-        WHEN 1 THEN 'product features and compatibility questions'
-        ELSE 'assistance with account or billing'
-    END,
-    CASE (random() * 4)::INTEGER
-        WHEN 0 THEN 'closed'
-        WHEN 1 THEN 'resolved'
-        WHEN 2 THEN 'in_progress'
-        ELSE 'open'
-    END,
-    CASE (random() * 4)::INTEGER
-        WHEN 0 THEN 'urgent'
-        WHEN 1 THEN 'high'
-        WHEN 2 THEN 'medium'
-        ELSE 'low'
-    END,
-    CASE WHEN random() < 0.7 THEN (random() * 2 + 3)::INTEGER ELSE NULL END, -- 3-5 rating for resolved
-    '2023-01-01'::TIMESTAMP + (random() * 700 || ' days')::INTERVAL,
-    CASE WHEN random() < 0.7 THEN
-        '2023-01-01'::TIMESTAMP + (random() * 700 || ' days')::INTERVAL + '2 days'::INTERVAL
-    ELSE NULL END
-FROM generate_series(1, 100);
-
--- =====================================================
--- LOYALTY TRANSACTIONS (For premium customers)
--- =====================================================
-
-INSERT INTO loyalty_transactions (
-    customer_id,
-    points,
-    transaction_type,
-    order_id,
-    description,
-    balance_after,
-    transaction_date
-)
-SELECT
-    o.customer_id,
-    (o.total_amount * 0.1)::INTEGER, -- 10% of order as points
-    'earned',
-    o.order_id,
-    'Points earned from order ' || o.order_number,
-    (o.total_amount * 0.1)::INTEGER,
-    o.order_date
-FROM orders o
-JOIN customers c ON o.customer_id = c.customer_id
-WHERE c.customer_segment = 'Premium'
-    AND o.order_status IN ('delivered', 'shipped')
-LIMIT 200;
-
--- =====================================================
--- WISHLIST ITEMS
--- =====================================================
-
-INSERT INTO wishlist_items (customer_id, product_id, priority, notes)
-SELECT
-    (random() * 149 + 1)::INTEGER,
-    (random() * 99 + 1)::INTEGER,
-    (random() * 5)::INTEGER,
-    CASE WHEN random() < 0.3 THEN 'Want to buy when on sale' ELSE NULL END
-FROM generate_series(1, 150)
-ON CONFLICT DO NOTHING;
-
--- =====================================================
--- CART ITEMS (Abandoned carts)
--- =====================================================
-
-INSERT INTO cart_items (customer_id, product_id, quantity, is_active)
-SELECT
-    (random() * 149 + 1)::INTEGER,
-    (random() * 99 + 1)::INTEGER,
-    (random() * 4 + 1)::INTEGER,
-    TRUE
-FROM generate_series(1, 80)
-ON CONFLICT DO NOTHING;
-
--- =====================================================
--- END OF DATA INSERTS
--- =====================================================
-
--- Update customer lifetime values based on actual orders
-UPDATE customers c
-SET total_lifetime_value = COALESCE(
-    (SELECT SUM(total_amount)
-     FROM orders o
-     WHERE o.customer_id = c.customer_id
-       AND o.order_status IN ('delivered', 'shipped', 'processing')),
-    0
-);
-
--- Update promotion usage counts
-UPDATE promotions p
-SET times_used = (
-    SELECT COUNT(*)
-    FROM order_promotions op
-    WHERE op.promotion_id = p.promotion_id
-);
+-- Count records in each table
+SELECT 'blockchains' as table_name, COUNT(*) as record_count FROM blockchains
+UNION ALL SELECT 'users', COUNT(*) FROM users
+UNION ALL SELECT 'tokens', COUNT(*) FROM tokens
+UNION ALL SELECT 'token_metadata', COUNT(*) FROM token_metadata
+UNION ALL SELECT 'token_price_history', COUNT(*) FROM token_price_history
+UNION ALL SELECT 'token_volume', COUNT(*) FROM token_volume
+UNION ALL SELECT 'token_revenue', COUNT(*) FROM token_revenue
+UNION ALL SELECT 'wallets', COUNT(*) FROM wallets
+UNION ALL SELECT 'wallet_balances', COUNT(*) FROM wallet_balances
+UNION ALL SELECT 'token_holdings', COUNT(*) FROM token_holdings
+UNION ALL SELECT 'exchanges', COUNT(*) FROM exchanges
+UNION ALL SELECT 'exchange_listings', COUNT(*) FROM exchange_listings
+UNION ALL SELECT 'trading_pairs', COUNT(*) FROM trading_pairs
+UNION ALL SELECT 'transactions', COUNT(*) FROM transactions
+UNION ALL SELECT 'staking_records', COUNT(*) FROM staking_records
+UNION ALL SELECT 'liquidity_pools', COUNT(*) FROM liquidity_pools
+ORDER BY table_name;
