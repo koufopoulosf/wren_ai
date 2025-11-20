@@ -584,8 +584,8 @@ BEGIN
         -- Random warehouse
         wh_id := (random() * 4 + 1)::INTEGER;
 
-        -- Order date spread across 2023-2024
-        order_dt := '2023-01-01'::TIMESTAMP + (random() * 700 || ' days')::INTERVAL + (random() * 86400 || ' seconds')::INTERVAL;
+        -- Order date spread across last ~2 years up to current date
+        order_dt := (CURRENT_DATE - INTERVAL '700 days') + (random() * 700 || ' days')::INTERVAL + (random() * 86400 || ' seconds')::INTERVAL;
 
         -- Random total amount
         total := (50 + random() * 2000)::DECIMAL(10,2);
