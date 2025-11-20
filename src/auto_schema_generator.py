@@ -228,13 +228,13 @@ class AutoSchemaGenerator:
             cursor.execute(f"""
                 SELECT COUNT(*)
                 FROM {table_name}
-                WHERE {col_name} IS NULL
+                WHERE "{col_name}" IS NULL
             """)
             stats['null_count'] = cursor.fetchone()[0]
 
             # Distinct count
             cursor.execute(f"""
-                SELECT COUNT(DISTINCT {col_name})
+                SELECT COUNT(DISTINCT "{col_name}")
                 FROM {table_name}
             """)
             stats['distinct_count'] = cursor.fetchone()[0]
@@ -244,9 +244,9 @@ class AutoSchemaGenerator:
                             'date', 'timestamp', 'timestamp without time zone', 'timestamp with time zone']:
                 try:
                     cursor.execute(f"""
-                        SELECT MIN({col_name}), MAX({col_name})
+                        SELECT MIN("{col_name}"), MAX("{col_name}")
                         FROM {table_name}
-                        WHERE {col_name} IS NOT NULL
+                        WHERE "{col_name}" IS NOT NULL
                     """)
                     result = cursor.fetchone()
                     if result:
@@ -283,10 +283,10 @@ class AutoSchemaGenerator:
 
         try:
             cursor.execute(f"""
-                SELECT {col_name}, COUNT(*) as freq
+                SELECT "{col_name}", COUNT(*) as freq
                 FROM {table_name}
-                WHERE {col_name} IS NOT NULL
-                GROUP BY {col_name}
+                WHERE "{col_name}" IS NOT NULL
+                GROUP BY "{col_name}"
                 ORDER BY freq DESC
                 LIMIT 5
             """)
