@@ -525,7 +525,7 @@ def display_message(role: str, content: str, metadata: Dict = None):
 
                 # Show chart if requested
                 if st.session_state.get(f'show_chart_{metadata.get("timestamp", "")}'):
-                    create_chart(df)
+                    create_chart(df, unique_id=metadata.get("timestamp", ""))
 
             # Only show warnings/suggestions if they exist and aren't already in content
             warnings = metadata.get('warnings')
@@ -538,43 +538,44 @@ def display_message(role: str, content: str, metadata: Dict = None):
                 st.info(f"💡 Suggestions: {', '.join(suggestions)}")
 
 
-def create_chart(df: pd.DataFrame):
+def create_chart(df: pd.DataFrame, unique_id: str = ""):
     """Create interactive chart from dataframe."""
     st.subheader("📊 Visualize Data")
 
     # Chart type selection
     chart_type = st.selectbox(
         "Chart Type",
-        ["Bar Chart", "Line Chart", "Scatter Plot", "Pie Chart", "Table"]
+        ["Bar Chart", "Line Chart", "Scatter Plot", "Pie Chart", "Table"],
+        key=f"chart_type_{unique_id}"
     )
 
     numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
     all_cols = df.columns.tolist()
 
     if chart_type == "Bar Chart" and len(numeric_cols) >= 1:
-        x_col = st.selectbox("X-axis", all_cols)
-        y_col = st.selectbox("Y-axis", numeric_cols)
+        x_col = st.selectbox("X-axis", all_cols, key=f"bar_x_{unique_id}")
+        y_col = st.selectbox("Y-axis", numeric_cols, key=f"bar_y_{unique_id}")
 
         fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
         st.plotly_chart(fig, use_container_width=True)
 
     elif chart_type == "Line Chart" and len(numeric_cols) >= 1:
-        x_col = st.selectbox("X-axis", all_cols)
-        y_col = st.selectbox("Y-axis", numeric_cols)
+        x_col = st.selectbox("X-axis", all_cols, key=f"line_x_{unique_id}")
+        y_col = st.selectbox("Y-axis", numeric_cols, key=f"line_y_{unique_id}")
 
         fig = px.line(df, x=x_col, y=y_col, title=f"{y_col} over {x_col}")
         st.plotly_chart(fig, use_container_width=True)
 
     elif chart_type == "Scatter Plot" and len(numeric_cols) >= 2:
-        x_col = st.selectbox("X-axis", numeric_cols)
-        y_col = st.selectbox("Y-axis", numeric_cols)
+        x_col = st.selectbox("X-axis", numeric_cols, key=f"scatter_x_{unique_id}")
+        y_col = st.selectbox("Y-axis", numeric_cols, key=f"scatter_y_{unique_id}")
 
         fig = px.scatter(df, x=x_col, y=y_col, title=f"{y_col} vs {x_col}")
         st.plotly_chart(fig, use_container_width=True)
 
     elif chart_type == "Pie Chart":
-        label_col = st.selectbox("Labels", all_cols)
-        value_col = st.selectbox("Values", numeric_cols) if numeric_cols else all_cols[0]
+        label_col = st.selectbox("Labels", all_cols, key=f"pie_labels_{unique_id}")
+        value_col = st.selectbox("Values", numeric_cols, key=f"pie_values_{unique_id}") if numeric_cols else all_cols[0]
 
         fig = px.pie(df, names=label_col, values=value_col, title=f"Distribution of {value_col}")
         st.plotly_chart(fig, use_container_width=True)
