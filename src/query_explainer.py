@@ -7,6 +7,14 @@ Converts SQL queries to plain English using Claude Sonnet 4.5.
 import logging
 from anthropic import Anthropic
 
+from .llm_utils import LLMUtils
+from .constants import (
+    LLM_MAX_TOKENS_SHORT_EXPLANATION,
+    LLM_MAX_TOKENS_DETAILED_EXPLANATION,
+    LLM_TEMPERATURE_PRECISE
+)
+from .exceptions import LLMError
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,35 +76,24 @@ Provide only the explanation, no other text or formatting."""
         try:
             logger.info("Generating SQL explanation with Claude")
 
-            # Call Claude API (now async using executor)
-            import asyncio
-            loop = asyncio.get_event_loop()
-            message = await loop.run_in_executor(
-                None,
-                lambda: self.client.messages.create(
-                    model=self.model,
-                    max_tokens=200,
-                    temperature=0.3,  # Low temperature for consistent explanations
-                    messages=[{
-                        "role": "user",
-                        "content": prompt
-                    }]
-                )
+            # Call Claude API using LLMUtils
+            explanation = await LLMUtils.call_claude_async(
+                client=self.client,
+                model=self.model,
+                prompt=prompt,
+                max_tokens=LLM_MAX_TOKENS_SHORT_EXPLANATION,
+                temperature=LLM_TEMPERATURE_PRECISE
             )
 
-            # Extract explanation text
-            explanation = message.content[0].text.strip()
-
             # Remove any markdown formatting
-            explanation = explanation.replace('**', '')
-            explanation = explanation.replace('*', '')
+            explanation = LLMUtils.clean_markdown_formatting(explanation)
 
             logger.info(f"✅ Generated explanation ({len(explanation)} chars)")
             logger.debug(f"Explanation: {explanation}")
 
             return explanation
 
-        except Exception as e:
+        except LLMError as e:
             logger.error(f"❌ Failed to generate explanation: {e}", exc_info=True)
 
             # Fallback to basic explanation
@@ -138,29 +135,22 @@ Provide only the explanation in plain English."""
         try:
             logger.info("Generating contextual SQL explanation with Claude")
 
-            # Call Claude API (now async using executor)
-            import asyncio
-            loop = asyncio.get_event_loop()
-            message = await loop.run_in_executor(
-                None,
-                lambda: self.client.messages.create(
-                    model=self.model,
-                    max_tokens=250,
-                    temperature=0.3,
-                    messages=[{
-                        "role": "user",
-                        "content": prompt
-                    }]
-                )
+            # Call Claude API using LLMUtils
+            explanation = await LLMUtils.call_claude_async(
+                client=self.client,
+                model=self.model,
+                prompt=prompt,
+                max_tokens=LLM_MAX_TOKENS_DETAILED_EXPLANATION,
+                temperature=LLM_TEMPERATURE_PRECISE
             )
 
-            explanation = message.content[0].text.strip()
-            explanation = explanation.replace('**', '').replace('*', '')
+            # Remove any markdown formatting
+            explanation = LLMUtils.clean_markdown_formatting(explanation)
 
             logger.info(f"✅ Generated contextual explanation")
             return explanation
 
-        except Exception as e:
+        except LLMError as e:
             logger.error(f"❌ Failed to generate contextual explanation: {e}", exc_info=True)
             return self._basic_explanation(sql)
     

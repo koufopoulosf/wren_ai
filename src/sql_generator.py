@@ -17,6 +17,15 @@ import asyncpg
 import time
 from anthropic import Anthropic
 
+from .llm_utils import LLMUtils
+from .constants import (
+    LLM_MAX_TOKENS_SQL_GENERATION,
+    SCHEMA_CACHE_TTL_SECONDS,
+    AMBIGUOUS_QUERY_MARKER,
+    DEFAULT_CLAUDE_MODEL
+)
+from .exceptions import LLMError, DatabaseError, QueryExecutionError
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +36,7 @@ class SQLGenerator:
         self,
         anthropic_client: Anthropic,
         db_config: Dict[str, str],
-        model: str = "claude-sonnet-4-20250514",
+        model: str = DEFAULT_CLAUDE_MODEL,
         db_type: str = "postgres"
     ):
         """
@@ -45,10 +54,10 @@ class SQLGenerator:
         self.db_type = db_type.lower()
         self._db_conn = None
 
-        # Schema caching (5 minute TTL)
+        # Schema caching
         self._schema_cache = None
         self._schema_cache_time = 0
-        self._schema_cache_ttl = 300  # 5 minutes in seconds
+        self._schema_cache_ttl = SCHEMA_CACHE_TTL_SECONDS
 
         logger.info(f"SQLGenerator initialized with model: {model}, db_type: {self.db_type}")
 
@@ -233,30 +242,20 @@ Note: The user's current question may reference this conversation history. Use i
 
 SQL Query:"""
 
-            # 4. Call Claude
+            # 4. Call Claude using LLMUtils
             logger.info("Calling Claude to generate SQL...")
-            loop = asyncio.get_event_loop()
-            message = await loop.run_in_executor(
-                None,
-                lambda: self.anthropic.messages.create(
-                    model=self.model,
-                    max_tokens=2000,
-                    messages=[{
-                        "role": "user",
-                        "content": prompt
-                    }]
-                )
+            sql = await LLMUtils.call_claude_async(
+                client=self.anthropic,
+                model=self.model,
+                prompt=prompt,
+                max_tokens=LLM_MAX_TOKENS_SQL_GENERATION
             )
 
-            sql = message.content[0].text.strip()
-
             # Clean up SQL (remove markdown if present)
-            if sql.startswith("```"):
-                sql = "\n".join(sql.split("\n")[1:-1])
-                sql = sql.strip()
+            sql = LLMUtils.extract_sql_from_markdown(sql)
 
             # Check if Claude indicated the query is ambiguous
-            if "AMBIGUOUS_QUERY" in sql:
+            if AMBIGUOUS_QUERY_MARKER in sql:
                 logger.warning("Claude detected ambiguous query")
                 raise ValueError("Your question is too vague. Please be more specific or provide more details about what you want to know.")
 
