@@ -58,6 +58,19 @@ class LLMUtils:
             LLMAPIError: If API call fails
             LLMResponseError: If response format is invalid
         """
+        import time
+
+        logger.info("=" * 80)
+        logger.info("LLM UTILS - CALLING CLAUDE API")
+        logger.info(f"Model: {model}")
+        logger.info(f"Max tokens: {max_tokens}")
+        logger.info(f"Temperature: {temperature if temperature is not None else 'default'}")
+        logger.info(f"Prompt length: {len(prompt)} chars")
+        logger.info(f"Has system prompt: {bool(system)}")
+        logger.info("=" * 80)
+
+        start_time = time.time()
+
         try:
             # Build message parameters
             params: Dict[str, Any] = {
@@ -75,6 +88,9 @@ class LLMUtils:
 
             if system is not None:
                 params["system"] = system
+                logger.debug(f"System prompt length: {len(system)} chars")
+
+            logger.info("Sending request to Claude API...")
 
             # Call API using executor to avoid blocking
             loop = asyncio.get_event_loop()
@@ -83,23 +99,46 @@ class LLMUtils:
                 lambda: client.messages.create(**params)
             )
 
+            elapsed_time = time.time() - start_time
+
+            # Log usage information
+            if hasattr(message, 'usage'):
+                logger.info(f"API usage - Input tokens: {message.usage.input_tokens}")
+                logger.info(f"API usage - Output tokens: {message.usage.output_tokens}")
+                total_tokens = message.usage.input_tokens + message.usage.output_tokens
+                logger.info(f"API usage - Total tokens: {total_tokens}")
+            else:
+                logger.debug("No usage information available from API response")
+
             # Extract and validate response
             if not message.content or len(message.content) == 0:
+                logger.error("❌ Empty response content from Claude API")
                 raise LLMResponseError("Empty response from Claude API")
 
             response_text = message.content[0].text.strip()
 
             if not response_text:
+                logger.error("❌ Response text is empty after stripping whitespace")
                 raise LLMResponseError("Response text is empty after stripping")
 
-            logger.debug(f"Claude API call successful: {len(response_text)} chars")
+            logger.info(f"✅ CLAUDE API CALL SUCCESSFUL in {elapsed_time:.2f}s")
+            logger.info(f"Response length: {len(response_text)} chars")
+            logger.info("=" * 80)
+
             return response_text
 
         except LLMResponseError:
             # Re-raise our custom exceptions as-is
+            elapsed_time = time.time() - start_time
+            logger.error(f"❌ LLM Response error after {elapsed_time:.2f}s")
             raise
         except Exception as e:
-            logger.error(f"Claude API call failed: {e}", exc_info=True)
+            elapsed_time = time.time() - start_time
+            logger.error("=" * 80)
+            logger.error(f"❌ CLAUDE API CALL FAILED after {elapsed_time:.2f}s")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error message: {str(e)}")
+            logger.error("=" * 80, exc_info=True)
             raise LLMAPIError(f"Failed to call Claude API: {str(e)}") from e
 
     @staticmethod
@@ -132,11 +171,13 @@ class LLMUtils:
         Raises:
             LLMAPIError: If all retries fail
         """
+        logger.info(f"LLM UTILS - Calling Claude with retry (max_retries={max_retries})")
         last_error = None
 
         for attempt in range(max_retries):
             try:
-                return await LLMUtils.call_claude_async(
+                logger.debug(f"Attempt {attempt + 1}/{max_retries}")
+                result = await LLMUtils.call_claude_async(
                     client=client,
                     model=model,
                     prompt=prompt,
@@ -144,19 +185,24 @@ class LLMUtils:
                     temperature=temperature,
                     system=system
                 )
+                if attempt > 0:
+                    logger.info(f"✅ Succeeded on attempt {attempt + 1}/{max_retries}")
+                return result
+
             except (LLMAPIError, LLMResponseError) as e:
                 last_error = e
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (attempt + 1)
                     logger.warning(
-                        f"Claude API call failed (attempt {attempt + 1}/{max_retries}), "
+                        f"⚠️ Claude API call failed (attempt {attempt + 1}/{max_retries}), "
                         f"retrying in {wait_time}s: {e}"
                     )
                     await asyncio.sleep(wait_time)
                 else:
-                    logger.error(f"Claude API call failed after {max_retries} attempts")
+                    logger.error(f"❌ Claude API call failed after {max_retries} attempts")
 
         # If we get here, all retries failed
+        logger.error(f"All {max_retries} retry attempts exhausted")
         raise LLMAPIError(
             f"Failed after {max_retries} attempts. Last error: {str(last_error)}"
         ) from last_error

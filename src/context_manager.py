@@ -191,15 +191,20 @@ class ContextManager:
         Returns:
             Resolved question with full context
         """
+        logger.debug(f"Resolving references for question: {question[:100]}...")
         context = self.get_or_create_context(session_id)
 
         # If no history, return as-is
         if not context.messages:
+            logger.debug("No conversation history - returning question as-is")
             return question
 
         # Check if question needs resolution
         if not self._needs_resolution(question):
+            logger.debug("Question does not need resolution - returning as-is")
             return question
+
+        logger.info(f"Question needs resolution (session: {session_id}, history: {len(context.messages)} messages)")
 
         try:
             # Build context from recent messages

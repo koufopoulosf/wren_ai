@@ -146,7 +146,7 @@ def generate_volume_data_sql():
     print("INSERT INTO token_volume (token_id, date, total_volume, total_volume_usd, buy_volume, sell_volume, trade_count, unique_traders, average_trade_size) VALUES")
 
     rows = []
-    for token_id in [1, 2, 3, 4, 5]:  # Major tokens only
+    for token_id in range(1, 21):  # All tokens (1-20)
         date = START_DATE
         while date <= END_DATE:
             volume = BASE_VOLUMES[token_id] * random.uniform(0.8, 1.3)
@@ -250,4 +250,4 @@ if __name__ == "__main__":
     generate_holdings_snapshots_sql()
 
     print("-- Data generation complete!")
-    print(f"-- Total records generated: ~{730 * 20 + 730 * 5 + 24 * 3 + 24 * 8:,}")
+    print(f"-- Total records generated: ~{730 * 20 + 730 * 20 + 24 * 3 + 24 * 8:,}")

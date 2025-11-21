@@ -221,16 +221,32 @@ class SQLGenerator:
         Returns:
             Dict with keys: sql, explanation, context_used
         """
+        logger.info("=" * 80)
+        logger.info("SQL GENERATOR - GENERATING SQL QUERY")
+        logger.info(f"Question: {question[:100]}...")
+        logger.info(f"Context limit: {context_limit}")
+        logger.info(f"Has conversation history: {bool(conversation_history)}")
+        logger.info("=" * 80)
+
+        start_time = time.time()
+
         try:
             # 1. Get full schema DDL
-            logger.info(f"Generating SQL for: {question}")
+            logger.info("Fetching database schema DDL...")
+            schema_start = time.time()
+
             schema_ddl = await self.get_schema_ddl()
 
+            schema_elapsed = time.time() - schema_start
+            logger.info(f"✅ Schema fetched in {schema_elapsed:.2f}s (length: {len(schema_ddl)} chars)")
+
             # 2. Build conversation context (if available)
+            logger.debug("Building conversation context...")
             conversation_context = ""
             if conversation_history and len(conversation_history) > 0:
                 # Include last 5 messages for context (to avoid token limits)
                 recent_history = conversation_history[-5:]
+                logger.debug(f"Including {len(recent_history)} recent messages in context")
                 history_parts = []
                 for msg in recent_history:
                     role = msg.get('role', 'user')
@@ -247,8 +263,12 @@ class SQLGenerator:
 
 Note: The user's current question may reference this conversation history. Use it to understand context like follow-up questions (e.g., "yes please proceed", "show me more", "what about X?").
 """
+                logger.debug("✅ Conversation context built")
+            else:
+                logger.debug("No conversation history available")
 
             # 3. Build Claude prompt
+            logger.debug("Building Claude prompt...")
             prompt = f"""You are a SQL expert. Generate a PostgreSQL query to answer the user's question.
 
 ## Database Schema (DDL)
@@ -290,8 +310,14 @@ IMPORTANT: Always use aggregate functions (MAX, MIN, AVG, SUM, COUNT) instead of
 
 SQL Query:"""
 
+            prompt_length = len(prompt)
+            logger.info(f"✅ Prompt built (length: {prompt_length} chars)")
+
             # 4. Call Claude using LLMUtils
-            logger.info("Calling Claude to generate SQL...")
+            logger.info("Calling Claude API to generate SQL...")
+            logger.debug(f"Model: {self.model}, Max tokens: {LLM_MAX_TOKENS_SQL_GENERATION}")
+            llm_start = time.time()
+
             sql = await LLMUtils.call_claude_async(
                 client=self.anthropic,
                 model=self.model,
@@ -299,12 +325,17 @@ SQL Query:"""
                 max_tokens=LLM_MAX_TOKENS_SQL_GENERATION
             )
 
+            llm_elapsed = time.time() - llm_start
+            logger.info(f"✅ Claude API call completed in {llm_elapsed:.2f}s")
+            logger.debug(f"Raw SQL response length: {len(sql)} chars")
+
             # Clean up SQL (remove markdown if present)
             sql = LLMUtils.extract_sql_from_markdown(sql)
+            logger.debug("✅ SQL extracted from markdown (if present)")
 
             # Check if Claude indicated the query is ambiguous
             if AMBIGUOUS_QUERY_MARKER in sql:
-                logger.warning("Claude detected ambiguous query")
+                logger.warning("⚠️ Claude detected ambiguous query")
                 raise ValueError("Your question is too vague. Please be more specific or provide more details about what you want to know.")
 
             # Handle multiple statements: take only the last non-empty statement
@@ -313,9 +344,12 @@ SQL Query:"""
                 statements = [s.strip() for s in sql.split(';') if s.strip()]
                 if statements:
                     sql = statements[-1]  # Use the last statement
-                    logger.warning(f"Multiple SQL statements detected, using only the last one")
+                    logger.warning(f"⚠️ Multiple SQL statements detected ({len(statements)}), using only the last one")
 
-            logger.info(f"Generated SQL: {sql[:100]}...")
+            total_elapsed = time.time() - start_time
+            logger.info(f"✅ SQL GENERATION COMPLETED in {total_elapsed:.2f}s")
+            logger.info(f"Generated SQL ({len(sql)} chars): {sql[:150]}...")
+            logger.info("=" * 80)
 
             return {
                 "sql": sql,
@@ -324,7 +358,12 @@ SQL Query:"""
             }
 
         except Exception as e:
-            logger.error(f"Error generating SQL: {e}")
+            total_elapsed = time.time() - start_time
+            logger.error("=" * 80)
+            logger.error(f"❌ SQL GENERATION ERROR after {total_elapsed:.2f}s")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error message: {str(e)}")
+            logger.error("=" * 80)
             raise
 
     async def execute_sql(self, sql: str) -> List[Dict[str, Any]]:
@@ -337,21 +376,46 @@ SQL Query:"""
         Returns:
             List of row dicts
         """
+        logger.info("=" * 80)
+        logger.info("SQL EXECUTOR - EXECUTING QUERY")
+        logger.info(f"SQL: {sql[:200]}...")
+        logger.info("=" * 80)
+
+        start_time = time.time()
+
         try:
             await self.connect_db()
+            logger.debug("✅ Database connection acquired")
 
-            logger.info(f"Executing SQL: {sql[:100]}...")
+            logger.info("Executing SQL query against database...")
+            exec_start = time.time()
+
             async with self._db_pool.acquire() as conn:
                 rows = await conn.fetch(sql)
+
+                exec_elapsed = time.time() - exec_start
+                logger.info(f"✅ Query executed in {exec_elapsed:.2f}s")
 
                 # Convert to list of dicts
                 results = [dict(row) for row in rows]
 
-                logger.info(f"Query returned {len(results)} rows")
+                total_elapsed = time.time() - start_time
+                logger.info(f"✅ SQL EXECUTION COMPLETED in {total_elapsed:.2f}s")
+                logger.info(f"Results: {len(results)} rows returned")
+                if results:
+                    logger.debug(f"First row keys: {list(results[0].keys())}")
+                logger.info("=" * 80)
+
                 return results
 
         except Exception as e:
-            logger.error(f"Error executing SQL: {e}")
+            total_elapsed = time.time() - start_time
+            logger.error("=" * 80)
+            logger.error(f"❌ SQL EXECUTION ERROR after {total_elapsed:.2f}s")
+            logger.error(f"SQL: {sql}")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error message: {str(e)}")
+            logger.error("=" * 80)
             raise
 
     async def ask(self, question: str, conversation_history: list = None) -> Dict[str, Any]:

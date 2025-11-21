@@ -311,13 +311,20 @@ class DataAssistant:
 def init_session_state() -> None:
     """Initialize session state variables."""
     if 'messages' not in st.session_state:
+        logger.info("=" * 80)
+        logger.info("INITIALIZING NEW STREAMLIT SESSION")
+        logger.info("=" * 80)
         st.session_state.messages = []
+        logger.info("✅ Messages list initialized")
 
     if 'assistant' not in st.session_state:
+        logger.info("Initializing DataAssistant...")
         st.session_state.assistant = DataAssistant()
+        logger.info("✅ DataAssistant created successfully")
 
     if 'initialized' not in st.session_state:
         st.session_state.initialized = False
+        logger.info("✅ Session state initialization complete")
 
 
 def display_message(role: str, content: str, metadata: Dict[str, Any] = None) -> None:
@@ -697,8 +704,38 @@ def run_async(coro) -> Any:
     This uses a session-specific event loop to ensure all async operations
     (including asyncpg database connections) use the same loop.
     """
+    import asyncio
+
     loop = get_or_create_event_loop()
-    return loop.run_until_complete(coro)
+
+    # Check if the event loop is already running
+    if loop.is_running():
+        # If loop is running, we need to schedule the coroutine differently
+        # Create a new task and wait for it synchronously using a thread
+        import concurrent.futures
+        import threading
+
+        # Create a future to hold the result
+        future = concurrent.futures.Future()
+
+        def run_in_loop():
+            try:
+                task = asyncio.ensure_future(coro, loop=loop)
+                result = asyncio.run_coroutine_threadsafe(coro, loop).result()
+                future.set_result(result)
+            except Exception as e:
+                future.set_exception(e)
+
+        # For already running loops, we can use asyncio.run_coroutine_threadsafe
+        try:
+            result = asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=300)
+            return result
+        except Exception as e:
+            logger.error(f"Error running coroutine in existing event loop: {e}")
+            raise
+    else:
+        # Loop not running, use the standard approach
+        return loop.run_until_complete(coro)
 
 
 def main() -> None:
@@ -827,14 +864,21 @@ def main() -> None:
         question = st.chat_input("Ask a question about your data...")
 
     if question:
+        logger.info("=" * 80)
+        logger.info(f"NEW USER QUESTION RECEIVED: {question}")
+        logger.info(f"Conversation history length: {len(st.session_state.messages)} messages")
+        logger.info("=" * 80)
+
         # Add user message
         st.session_state.messages.append({
             'role': 'user',
             'content': question
         })
+        logger.debug(f"User message appended to session state (total: {len(st.session_state.messages)})")
 
         # Display user message immediately
         display_message('user', question, None)
+        logger.debug("User message displayed in UI")
 
         # Show thinking status below the question
         thinking_placeholder = st.empty()
@@ -846,23 +890,39 @@ def main() -> None:
             import hashlib
             import time
             st.session_state.session_id = hashlib.md5(f"{time.time()}".encode()).hexdigest()[:16]
+            logger.info(f"Created new session_id: {st.session_state.session_id}")
+        else:
+            logger.debug(f"Using existing session_id: {st.session_state.session_id}")
 
         # Get conversation history (exclude the current question, which was just added)
         conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
+        logger.info(f"Building conversation context with {len(conversation_history)} previous messages")
 
         # Process question with conversation context and session_id
+        logger.info("🔄 Starting question processing pipeline...")
+        start_time = datetime.now()
+
         response = run_async(st.session_state.assistant.process_question(
             question=question,
             session_id=st.session_state.session_id,
             conversation_history=conversation_history
         ))
 
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"✅ Question processing completed in {elapsed_time:.2f}s")
+        logger.info(f"Response success: {response.get('success', False)}")
+
         # Clear thinking message
         thinking_placeholder.empty()
 
         # Prepare assistant message
         if response['success']:
+            logger.info(f"Query successful - returned {len(response.get('results', []))} rows")
+            logger.debug(f"Generated SQL length: {len(response.get('sql', ''))} chars")
+
             content = response.get('explanation', '✅ Query executed successfully!')
+            logger.debug(f"Explanation length: {len(content)} chars")
+
             # For successful queries, show warnings separately (like result warnings)
             metadata = {
                 'question': question,  # Store question for insights generation
