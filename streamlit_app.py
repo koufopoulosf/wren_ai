@@ -388,8 +388,14 @@ def display_message(role: str, content: str, metadata: Dict[str, Any] = None) ->
                     if not metadata.get('insights'):
                         st.markdown("")  # Spacing
                         if st.button("💎 Show Key Takeaways & Recommendations", key=f"insights_btn_{metadata.get('timestamp', '')}", use_container_width=True):
-                            st.session_state[f'request_insights_{metadata.get("timestamp", "")}'] = True
-                            st.rerun()
+                            timestamp = metadata.get("timestamp", "")
+                            if not timestamp:
+                                logger.error("Button clicked but timestamp is missing from metadata")
+                                st.error("Unable to generate insights: message timestamp is missing")
+                            else:
+                                logger.info(f"Insights button clicked for timestamp: {timestamp}")
+                                st.session_state[f'request_insights_{timestamp}'] = True
+                                st.rerun()
 
                 # Show chart if requested
                 if st.session_state.get(f'show_chart_{metadata.get("timestamp", "")}'):
@@ -755,22 +761,55 @@ def main() -> None:
             timestamp = metadata.get('timestamp', '')
 
             # Check if insights were requested for this message
-            if st.session_state.get(f'request_insights_{timestamp}'):
+            request_key = f'request_insights_{timestamp}'
+            if st.session_state.get(request_key):
+                logger.info(f"Processing insights request for timestamp: {timestamp}")
+
+                # Validate required fields
+                question = metadata.get('question', '')
+                sql = metadata.get('sql', '')
+                results = metadata.get('results', [])
+
+                if not question:
+                    logger.error(f"Missing question field in metadata for timestamp: {timestamp}")
+                    st.error("Unable to generate insights: original question is missing")
+                    del st.session_state[request_key]
+                    st.rerun()
+
+                if not sql:
+                    logger.warning(f"Missing SQL field in metadata for timestamp: {timestamp}")
+
                 # Generate insights
                 with st.spinner("💎 Generating key takeaways and recommendations..."):
-                    insights = run_async(st.session_state.assistant.orchestrator.generate_insights_for_response(
-                        question=metadata.get('question', ''),
-                        sql=metadata.get('sql', ''),
-                        results=metadata.get('results', []),
-                        conversation_history=st.session_state.messages[:idx]
-                    ))
+                    try:
+                        logger.info(f"Calling generate_insights_for_response for timestamp: {timestamp}")
+                        insights = run_async(st.session_state.assistant.orchestrator.generate_insights_for_response(
+                            question=question,
+                            sql=sql,
+                            results=results,
+                            conversation_history=st.session_state.messages[:idx]
+                        ))
 
-                    # Update message metadata with insights
-                    st.session_state.messages[idx]['metadata']['insights'] = insights
+                        logger.info(f"Insights generated successfully for timestamp: {timestamp}")
 
-                    # Clear the request flag
-                    del st.session_state[f'request_insights_{timestamp}']
-                    st.rerun()
+                        # Check if insights are empty
+                        if not insights or not isinstance(insights, dict):
+                            logger.warning(f"Empty or invalid insights returned for timestamp: {timestamp}")
+                            st.warning("Unable to generate meaningful insights from the data. The response may not have enough information to analyze.")
+                        else:
+                            # Update message metadata with insights
+                            st.session_state.messages[idx]['metadata']['insights'] = insights
+                            logger.info(f"Insights stored in message metadata for timestamp: {timestamp}")
+
+                    except Exception as e:
+                        logger.error(f"Error generating insights for timestamp {timestamp}: {e}", exc_info=True)
+                        st.error(f"Failed to generate insights: {str(e)}")
+
+                    finally:
+                        # Always clear the request flag
+                        if request_key in st.session_state:
+                            del st.session_state[request_key]
+                        st.rerun()
 
     for message in st.session_state.messages:
         display_message(message['role'], message['content'], message.get('metadata'))
