@@ -15,6 +15,11 @@ from .sql_generator import SQLGenerator
 from .context_manager import ContextManager
 from .insight_generator import InsightGenerator
 from .exceptions import DataAssistantError
+from .constants import (
+    MIN_RESULTS_FOR_INSIGHTS,
+    DEFAULT_NO_DATA_SUGGESTIONS,
+    MAX_SUGGESTIONS_TO_SHOW
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,42 +117,32 @@ class PipelineOrchestrator:
                 # Meta query - return conversational response
                 response['success'] = True
                 response['explanation'] = classification.get('response', '')
-
-                self.context_manager.add_message(
-                    session_id=session_id,
-                    role='assistant',
-                    content=response['explanation']
-                )
+                self._store_assistant_response(session_id, response['explanation'])
                 return response
 
             # Step 3: Try to generate SQL from the question
-            result = await self.sql_generator.ask(
+            sql_result = await self.sql_generator.ask(
                 question,
                 conversation_history=conversation_history
             )
 
-            sql = result.get('sql', '')
-            results = result.get('results', [])
+            sql = sql_result.get('sql', '')
+            results = sql_result.get('results', [])
 
             # Check if we could generate SQL
             if not sql:
                 # We don't have the data to answer this
-                response['explanation'] = self._generate_no_data_response(question, result)
-                response['suggestions'] = self._suggest_alternatives(question, result)
+                response['explanation'] = self._generate_no_data_response(question, sql_result)
+                response['suggestions'] = self._suggest_alternatives(question, sql_result)
                 response['success'] = False
-
-                self.context_manager.add_message(
-                    session_id=session_id,
-                    role='assistant',
-                    content=response['explanation']
-                )
+                self._store_assistant_response(session_id, response['explanation'])
                 return response
 
             response['sql'] = sql
             response['results'] = results
 
-            # Step 4: Generate explanation + insights in parallel (if we have results)
-            if results and len(results) >= 3:
+            # Step 4: Generate explanation + insights in parallel (if we have meaningful data)
+            if results and len(results) >= MIN_RESULTS_FOR_INSIGHTS:
                 # Both need same inputs, so run in parallel for speed!
                 explanation_task = self.response_generator.generate(
                     question=question,
@@ -187,15 +182,14 @@ class PipelineOrchestrator:
 
             # Step 5: Add helpful suggestions if results are empty
             if not results or len(results) == 0:
-                response['suggestions'] = self._suggest_alternatives(question, result)
+                response['suggestions'] = self._suggest_alternatives(question, sql_result)
 
             response['success'] = True
 
             # Store response in context for follow-up questions
-            self.context_manager.add_message(
+            self._store_assistant_response_with_data(
                 session_id=session_id,
-                role='assistant',
-                content=response['explanation'],
+                explanation=response['explanation'],
                 sql=response['sql'],
                 results=response['results']
             )
@@ -204,12 +198,7 @@ class PipelineOrchestrator:
             logger.error(f"❌ Pipeline error: {e}", exc_info=True)
             response['explanation'] = f"Sorry, I encountered an error: {str(e)}"
             response['success'] = False
-
-            self.context_manager.add_message(
-                session_id=session_id,
-                role='assistant',
-                content=response['explanation']
-            )
+            self._store_assistant_response(session_id, response['explanation'])
 
         return response
 
@@ -226,18 +215,18 @@ class PipelineOrchestrator:
             'insights': None
         }
 
-    def _generate_no_data_response(self, question: str, result: Dict) -> str:
+    def _generate_no_data_response(self, question: str, sql_result: Dict) -> str:
         """
         Generate friendly response when we don't have the data.
 
         Args:
             question: User's question
-            result: Result from SQL generator
+            sql_result: Result from SQL generator
 
         Returns:
             Friendly explanation of what's missing
         """
-        explanation = result.get('explanation', '')
+        explanation = sql_result.get('explanation', '')
 
         if explanation:
             return f"I don't have data to answer that. {explanation}"
@@ -248,13 +237,13 @@ class PipelineOrchestrator:
             "or I might need more specific details about what you're looking for."
         )
 
-    def _suggest_alternatives(self, question: str, result: Dict) -> List[str]:
+    def _suggest_alternatives(self, question: str, sql_result: Dict) -> List[str]:
         """
         Suggest helpful alternatives when data is missing or results are empty.
 
         Args:
             question: User's question
-            result: Result from SQL generator
+            sql_result: Result from SQL generator
 
         Returns:
             List of helpful suggestions
@@ -262,14 +251,48 @@ class PipelineOrchestrator:
         suggestions = []
 
         # Check if SQL generator provided suggestions
-        if 'suggestions' in result and result['suggestions']:
-            suggestions.extend(result['suggestions'])
+        if 'suggestions' in sql_result and sql_result['suggestions']:
+            suggestions.extend(sql_result['suggestions'])
 
-        # Add generic helpful suggestions
-        suggestions.extend([
-            "Ask 'What tables are available?' to see what data I have",
-            "Try rephrasing your question with different terms",
-            "Ask about a specific table or column name"
-        ])
+        # Add generic helpful suggestions from constants
+        suggestions.extend(DEFAULT_NO_DATA_SUGGESTIONS)
 
-        return suggestions[:3]  # Keep it simple, max 3 suggestions
+        return suggestions[:MAX_SUGGESTIONS_TO_SHOW]
+
+    def _store_assistant_response(self, session_id: str, content: str) -> None:
+        """
+        Store simple assistant response in context (for meta queries and errors).
+
+        Args:
+            session_id: Session identifier
+            content: Response text to store
+        """
+        self.context_manager.add_message(
+            session_id=session_id,
+            role='assistant',
+            content=content
+        )
+
+    def _store_assistant_response_with_data(
+        self,
+        session_id: str,
+        explanation: str,
+        sql: str,
+        results: List[Dict]
+    ) -> None:
+        """
+        Store assistant response with SQL and results in context.
+
+        Args:
+            session_id: Session identifier
+            explanation: Response explanation
+            sql: SQL query that was executed
+            results: Query results
+        """
+        self.context_manager.add_message(
+            session_id=session_id,
+            role='assistant',
+            content=explanation,
+            sql=sql,
+            results=results
+        )
