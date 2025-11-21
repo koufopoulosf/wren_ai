@@ -279,12 +279,18 @@ If the question references a previous query (e.g., "worst" after showing "top"),
             else:
                 logger.debug("No conversation history available")
 
-            # 3. Build Claude prompt
-            logger.debug("Building Claude prompt...")
-            prompt = f"""You are a SQL expert. Generate a PostgreSQL query to answer the user's question.
+            # 3. Build system prompt with schema (will be cached)
+            logger.debug("Building system prompt with schema for caching...")
+            system_prompt = f"""You are a SQL expert. Generate a PostgreSQL query to answer the user's question.
 
 ## Database Schema (DDL)
-{schema_ddl}{conversation_context}
+{schema_ddl}
+
+Use this schema to understand the available tables, columns, and relationships when generating SQL queries."""
+
+            # 4. Build user prompt with question and context
+            logger.debug("Building user prompt...")
+            prompt = f"""{conversation_context}
 
 ## User Question
 {question}
@@ -323,10 +329,12 @@ IMPORTANT: Always use aggregate functions (MAX, MIN, AVG, SUM, COUNT) instead of
 SQL Query:"""
 
             prompt_length = len(prompt)
-            logger.info(f"✅ Prompt built (length: {prompt_length} chars)")
+            system_length = len(system_prompt)
+            logger.info(f"✅ System prompt (schema) built (length: {system_length} chars) - will be cached")
+            logger.info(f"✅ User prompt built (length: {prompt_length} chars)")
 
-            # 4. Call Claude using LLMUtils
-            logger.info("Calling Claude API to generate SQL...")
+            # 5. Call Claude using LLMUtils with caching enabled
+            logger.info("Calling Claude API to generate SQL with prompt caching...")
             logger.debug(f"Model: {self.model}, Max tokens: {LLM_MAX_TOKENS_SQL_GENERATION}")
             llm_start = time.time()
 
@@ -334,7 +342,9 @@ SQL Query:"""
                 client=self.anthropic,
                 model=self.model,
                 prompt=prompt,
-                max_tokens=LLM_MAX_TOKENS_SQL_GENERATION
+                max_tokens=LLM_MAX_TOKENS_SQL_GENERATION,
+                system=system_prompt,
+                enable_caching=True  # Enable prompt caching for schema
             )
 
             llm_elapsed = time.time() - llm_start
