@@ -17,14 +17,14 @@ import asyncpg
 import time
 from anthropic import Anthropic
 
-from .llm_utils import LLMUtils
-from .constants import (
+from llm_utils import LLMUtils
+from constants import (
     LLM_MAX_TOKENS_SQL_GENERATION,
     SCHEMA_CACHE_TTL_SECONDS,
     AMBIGUOUS_QUERY_MARKER,
     DEFAULT_CLAUDE_MODEL
 )
-from .exceptions import LLMError, DatabaseError, QueryExecutionError
+from exceptions import LLMError, DatabaseError, QueryExecutionError
 
 logger = logging.getLogger(__name__)
 

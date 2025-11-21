@@ -10,22 +10,22 @@ __author__ = "Your Team"
 __description__ = "Natural language data queries via Streamlit"
 
 # Core modules
-from .config import Config
-from .sql_generator import SQLGenerator
-from .query_explainer import QueryExplainer
-from .result_validator import ResultValidator
-from .question_classifier import QuestionClassifier
-from .response_generator import ResponseGenerator
-from .pipeline_orchestrator import PipelineOrchestrator
-from .context_manager import ContextManager, ConversationContext, Message
-from .response_validator import ResponseValidator
-from .insight_generator import InsightGenerator
-from .confidence_calculator import ConfidenceCalculator
+from config import Config
+from sql_generator import SQLGenerator
+from query_explainer import QueryExplainer
+from result_validator import ResultValidator
+from question_classifier import QuestionClassifier
+from response_generator import ResponseGenerator
+from pipeline_orchestrator import PipelineOrchestrator
+from context_manager import ContextManager, ConversationContext, Message
+from response_validator import ResponseValidator
+from insight_generator import InsightGenerator
+from confidence_calculator import ConfidenceCalculator
 
 # Utilities
-from .llm_utils import LLMUtils
-from .constants import *
-from .exceptions import *
+from llm_utils import LLMUtils
+from constants import *
+from exceptions import *
 
 __all__ = [
     # Core classes

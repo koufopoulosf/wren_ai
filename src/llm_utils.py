@@ -10,8 +10,8 @@ import logging
 from typing import Optional, Dict, Any, List
 from anthropic import Anthropic
 
-from .exceptions import LLMAPIError, LLMResponseError
-from .constants import (
+from exceptions import LLMAPIError, LLMResponseError
+from constants import (
     LLM_MAX_TOKENS_SQL_GENERATION,
     LLM_TEMPERATURE_DEFAULT
 )

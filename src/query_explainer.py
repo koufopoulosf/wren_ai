@@ -7,13 +7,13 @@ Converts SQL queries to plain English using Claude Sonnet 4.5.
 import logging
 from anthropic import Anthropic
 
-from .llm_utils import LLMUtils
-from .constants import (
+from llm_utils import LLMUtils
+from constants import (
     LLM_MAX_TOKENS_SHORT_EXPLANATION,
     LLM_MAX_TOKENS_DETAILED_EXPLANATION,
     LLM_TEMPERATURE_PRECISE
 )
-from .exceptions import LLMError
+from exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
