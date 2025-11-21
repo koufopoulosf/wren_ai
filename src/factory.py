@@ -5,7 +5,7 @@ Handles dependency injection for core components + insights.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Type, TypeVar, Any
 
 from .config import Config
 from .sql_generator import SQLGenerator
@@ -16,6 +16,8 @@ from .insight_generator import InsightGenerator
 from .pipeline_orchestrator import PipelineOrchestrator
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar('T')  # Generic type for component creation
 
 
 class ComponentFactory:
@@ -41,57 +43,74 @@ class ComponentFactory:
         self._components = {}
         logger.info("✅ Simplified ComponentFactory initialized")
 
+    def _create_component(
+        self,
+        component_name: str,
+        component_class: Type[T],
+        **kwargs: Any
+    ) -> T:
+        """
+        Generic component creation with caching.
+
+        Args:
+            component_name: Name for caching
+            component_class: Class to instantiate
+            **kwargs: Constructor arguments
+
+        Returns:
+            Component instance (cached)
+        """
+        if component_name not in self._components:
+            self._components[component_name] = component_class(**kwargs)
+            logger.info(f"✅ {component_class.__name__} created")
+        return self._components[component_name]
+
     def create_sql_generator(self) -> SQLGenerator:
         """Create and configure SQL generator."""
-        if 'sql_generator' not in self._components:
-            self._components['sql_generator'] = SQLGenerator(
-                anthropic_client=self.config.anthropic_client,
-                db_config=self.config.get_db_config(),
-                model=self.config.ANTHROPIC_MODEL,
-                db_type=self.config.DB_TYPE
-            )
-            logger.info("✅ SQLGenerator created")
-        return self._components['sql_generator']
+        return self._create_component(
+            'sql_generator',
+            SQLGenerator,
+            anthropic_client=self.config.anthropic_client,
+            db_config=self.config.get_db_config(),
+            model=self.config.ANTHROPIC_MODEL,
+            db_type=self.config.DB_TYPE
+        )
 
     def create_question_classifier(self) -> QuestionClassifier:
         """Create and configure question classifier."""
-        if 'question_classifier' not in self._components:
-            self._components['question_classifier'] = QuestionClassifier(
-                anthropic_client=self.config.anthropic_client,
-                model=self.config.ANTHROPIC_MODEL
-            )
-            logger.info("✅ QuestionClassifier created")
-        return self._components['question_classifier']
+        return self._create_component(
+            'question_classifier',
+            QuestionClassifier,
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
 
     def create_response_generator(self) -> ResponseGenerator:
         """Create and configure response generator."""
-        if 'response_generator' not in self._components:
-            self._components['response_generator'] = ResponseGenerator(
-                anthropic_client=self.config.anthropic_client,
-                model=self.config.ANTHROPIC_MODEL
-            )
-            logger.info("✅ ResponseGenerator created")
-        return self._components['response_generator']
+        return self._create_component(
+            'response_generator',
+            ResponseGenerator,
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
 
     def create_context_manager(self) -> ContextManager:
         """Create and configure context manager."""
-        if 'context_manager' not in self._components:
-            self._components['context_manager'] = ContextManager(
-                anthropic_client=self.config.anthropic_client,
-                model=self.config.ANTHROPIC_MODEL
-            )
-            logger.info("✅ ContextManager created")
-        return self._components['context_manager']
+        return self._create_component(
+            'context_manager',
+            ContextManager,
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
 
     def create_insight_generator(self) -> InsightGenerator:
         """Create and configure insight generator."""
-        if 'insight_generator' not in self._components:
-            self._components['insight_generator'] = InsightGenerator(
-                anthropic_client=self.config.anthropic_client,
-                model=self.config.ANTHROPIC_MODEL
-            )
-            logger.info("✅ InsightGenerator created")
-        return self._components['insight_generator']
+        return self._create_component(
+            'insight_generator',
+            InsightGenerator,
+            anthropic_client=self.config.anthropic_client,
+            model=self.config.ANTHROPIC_MODEL
+        )
 
     def create_pipeline_orchestrator(self) -> PipelineOrchestrator:
         """

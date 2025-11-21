@@ -6,7 +6,8 @@ Simple, focused pipeline: Understand question → Have data? → Answer + Key in
 
 import logging
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass, field
 from anthropic import Anthropic
 
 from .question_classifier import QuestionClassifier
@@ -22,6 +23,37 @@ from .constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class QueryResponse:
+    """
+    Type-safe response structure for pipeline queries.
+
+    Using a dataclass provides:
+    - Type hints and IDE autocomplete
+    - Catches typos at design time
+    - Clear documentation of response structure
+    """
+    success: bool = False
+    sql: str = ''
+    results: List[Dict] = field(default_factory=list)
+    explanation: str = ''
+    suggestions: List[str] = field(default_factory=list)
+    resolved_question: str = ''
+    insights: Optional[Dict] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return {
+            'success': self.success,
+            'sql': self.sql,
+            'results': self.results,
+            'explanation': self.explanation,
+            'suggestions': self.suggestions,
+            'resolved_question': self.resolved_question,
+            'insights': self.insights
+        }
 
 
 class PipelineOrchestrator:
@@ -78,18 +110,9 @@ class PipelineOrchestrator:
             conversation_history: List of previous messages for context
 
         Returns:
-            {
-                'success': bool,
-                'sql': str,
-                'results': List[Dict],
-                'explanation': str,
-                'suggestions': List[str],
-                'resolved_question': str,
-                'insights': Dict  # Key takeaways (only if results have 3+ rows)
-            }
+            Dictionary representation of QueryResponse
         """
-        response = self._create_empty_response()
-        original_question = question
+        response = QueryResponse()
 
         try:
             # Store user question in context
@@ -99,121 +122,207 @@ class PipelineOrchestrator:
                 content=question
             )
 
-            # Step 1: Understand question with context (e.g., "show me more" → "show me more Bitcoin prices")
-            resolved_question = await self.context_manager.resolve_references(
-                question=question,
-                session_id=session_id
+            # Step 1 & 2: Resolve references and classify question
+            resolved_question, classification = await self._resolve_and_classify_question(
+                question, session_id
             )
-            question = resolved_question
-            response['resolved_question'] = resolved_question
+            response.resolved_question = resolved_question
 
-            if resolved_question != original_question:
-                logger.info(f"📝 Resolved: '{original_question}' → '{resolved_question}'")
-
-            # Step 2: Classify question (data query vs. meta question like "what can you do?")
-            classification = await self.classifier.classify(question)
-
+            # Handle meta queries (non-data questions)
             if not classification.get('is_data_query', True):
-                # Meta query - return conversational response
-                response['success'] = True
-                response['explanation'] = classification.get('response', '')
-                self._store_assistant_response(session_id, response['explanation'])
-                return response
+                return self._handle_meta_query(
+                    response, classification, session_id
+                ).to_dict()
 
-            # Step 3: Try to generate SQL from the question
-            sql_result = await self.sql_generator.ask(
-                question,
-                conversation_history=conversation_history
+            # Step 3: Generate SQL and execute
+            sql_result = await self._generate_sql_and_results(
+                resolved_question, conversation_history
             )
 
-            sql = sql_result.get('sql', '')
-            results = sql_result.get('results', [])
+            # Handle case where we don't have the data
+            if not sql_result.get('sql', ''):
+                return self._handle_no_data_found(
+                    response, resolved_question, sql_result, session_id
+                ).to_dict()
 
-            # Check if we could generate SQL
-            if not sql:
-                # We don't have the data to answer this
-                response['explanation'] = self._generate_no_data_response(question, sql_result)
-                response['suggestions'] = self._suggest_alternatives(question, sql_result)
-                response['success'] = False
-                self._store_assistant_response(session_id, response['explanation'])
-                return response
+            # Step 4 & 5: Generate response with insights
+            response = await self._generate_response_with_insights(
+                response, resolved_question, sql_result, conversation_history
+            )
 
-            response['sql'] = sql
-            response['results'] = results
+            response.success = True
 
-            # Step 4: Generate explanation + insights in parallel (if we have meaningful data)
-            if results and len(results) >= MIN_RESULTS_FOR_INSIGHTS:
-                # Both need same inputs, so run in parallel for speed!
-                explanation_task = self.response_generator.generate(
-                    question=question,
-                    sql=sql,
-                    results=results,
-                    conversation_history=conversation_history
-                )
-
-                insights_task = self.insight_generator.generate_insights(
-                    question=question,
-                    sql=sql,
-                    results=results
-                )
-
-                # Run both at the same time
-                explanation, insights = await asyncio.gather(
-                    explanation_task,
-                    insights_task
-                )
-
-                response['explanation'] = explanation
-                response['insights'] = insights.to_dict()
-
-                # Add insight summary to suggestions if available
-                if insights.has_insights() and insights.summary:
-                    response['suggestions'].insert(0, f"💡 {insights.summary}")
-            else:
-                # Just explanation for empty results or small datasets
-                explanation = await self.response_generator.generate(
-                    question=question,
-                    sql=sql,
-                    results=results,
-                    conversation_history=conversation_history
-                )
-                response['explanation'] = explanation
-                response['insights'] = None
-
-            # Step 5: Add helpful suggestions if results are empty
-            if not results or len(results) == 0:
-                response['suggestions'] = self._suggest_alternatives(question, sql_result)
-
-            response['success'] = True
-
-            # Store response in context for follow-up questions
+            # Store in context
             self._store_assistant_response_with_data(
                 session_id=session_id,
-                explanation=response['explanation'],
-                sql=response['sql'],
-                results=response['results']
+                explanation=response.explanation,
+                sql=response.sql,
+                results=response.results
             )
 
         except Exception as e:
             logger.error(f"❌ Pipeline error: {e}", exc_info=True)
-            response['explanation'] = f"Sorry, I encountered an error: {str(e)}"
-            response['success'] = False
-            self._store_assistant_response(session_id, response['explanation'])
+            response.explanation = f"Sorry, I encountered an error: {str(e)}"
+            response.success = False
+            self._store_assistant_response(session_id, response.explanation)
 
+        return response.to_dict()
+
+    async def _resolve_and_classify_question(
+        self, question: str, session_id: str
+    ) -> tuple[str, Dict]:
+        """
+        Resolve question references and classify question type.
+
+        Args:
+            question: User's question
+            session_id: Session identifier
+
+        Returns:
+            Tuple of (resolved_question, classification)
+        """
+        # Resolve references using context (e.g., "show me more" → "show me more Bitcoin prices")
+        resolved_question = await self.context_manager.resolve_references(
+            question=question,
+            session_id=session_id
+        )
+
+        if resolved_question != question:
+            logger.info(f"📝 Resolved: '{question}' → '{resolved_question}'")
+
+        # Classify question (data query vs. meta question)
+        classification = await self.classifier.classify(resolved_question)
+
+        return resolved_question, classification
+
+    def _handle_meta_query(
+        self,
+        response: QueryResponse,
+        classification: Dict,
+        session_id: str
+    ) -> QueryResponse:
+        """
+        Handle non-data queries (e.g., "what can you do?").
+
+        Args:
+            response: Response object to populate
+            classification: Classification result
+            session_id: Session identifier
+
+        Returns:
+            Populated QueryResponse
+        """
+        response.success = True
+        response.explanation = classification.get('response', '')
+        self._store_assistant_response(session_id, response.explanation)
         return response
 
-    @staticmethod
-    def _create_empty_response() -> Dict[str, Any]:
-        """Create simple response structure."""
-        return {
-            'success': False,
-            'sql': '',
-            'results': [],
-            'explanation': '',
-            'suggestions': [],
-            'resolved_question': '',
-            'insights': None
-        }
+    async def _generate_sql_and_results(
+        self,
+        question: str,
+        conversation_history: list
+    ) -> Dict:
+        """
+        Generate SQL from question and execute it.
+
+        Args:
+            question: Resolved question
+            conversation_history: Conversation context
+
+        Returns:
+            SQL generation result with sql, results, and suggestions
+        """
+        return await self.sql_generator.ask(
+            question,
+            conversation_history=conversation_history
+        )
+
+    def _handle_no_data_found(
+        self,
+        response: QueryResponse,
+        question: str,
+        sql_result: Dict,
+        session_id: str
+    ) -> QueryResponse:
+        """
+        Handle case where we don't have data to answer the question.
+
+        Args:
+            response: Response object to populate
+            question: User's question
+            sql_result: SQL generation result
+            session_id: Session identifier
+
+        Returns:
+            Populated QueryResponse
+        """
+        response.explanation = self._generate_no_data_response(question, sql_result)
+        response.suggestions = self._suggest_alternatives(question, sql_result)
+        response.success = False
+        self._store_assistant_response(session_id, response.explanation)
+        return response
+
+    async def _generate_response_with_insights(
+        self,
+        response: QueryResponse,
+        question: str,
+        sql_result: Dict,
+        conversation_history: list
+    ) -> QueryResponse:
+        """
+        Generate explanation and insights (in parallel when possible).
+
+        Args:
+            response: Response object to populate
+            question: User's question
+            sql_result: SQL generation result
+            conversation_history: Conversation context
+
+        Returns:
+            Populated QueryResponse
+        """
+        sql = sql_result.get('sql', '')
+        results = sql_result.get('results', [])
+
+        response.sql = sql
+        response.results = results
+
+        # Generate insights in parallel if we have meaningful data
+        if results and len(results) >= MIN_RESULTS_FOR_INSIGHTS:
+            explanation, insights = await asyncio.gather(
+                self.response_generator.generate(
+                    question=question,
+                    sql=sql,
+                    results=results,
+                    conversation_history=conversation_history
+                ),
+                self.insight_generator.generate_insights(
+                    question=question,
+                    sql=sql,
+                    results=results
+                )
+            )
+
+            response.explanation = explanation
+            response.insights = insights.to_dict()
+
+            # Add insight summary to suggestions
+            if insights.has_insights() and insights.summary:
+                response.suggestions.insert(0, f"💡 {insights.summary}")
+        else:
+            # Just explanation for empty/small datasets
+            response.explanation = await self.response_generator.generate(
+                question=question,
+                sql=sql,
+                results=results,
+                conversation_history=conversation_history
+            )
+
+        # Add suggestions for empty results
+        if not results:
+            response.suggestions = self._suggest_alternatives(question, sql_result)
+
+        return response
 
     def _generate_no_data_response(self, question: str, sql_result: Dict) -> str:
         """
