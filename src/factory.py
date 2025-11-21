@@ -7,13 +7,13 @@ Handles dependency injection for core components + insights.
 import logging
 from typing import Optional, Type, TypeVar, Any
 
-from .config import Config
-from .sql_generator import SQLGenerator
-from .question_classifier import QuestionClassifier
-from .response_generator import ResponseGenerator
-from .context_manager import ContextManager
-from .insight_generator import InsightGenerator
-from .pipeline_orchestrator import PipelineOrchestrator
+from config import Config
+from sql_generator import SQLGenerator
+from question_classifier import QuestionClassifier
+from response_generator import ResponseGenerator
+from context_manager import ContextManager
+from insight_generator import InsightGenerator
+from pipeline_orchestrator import PipelineOrchestrator
 
 logger = logging.getLogger(__name__)
 

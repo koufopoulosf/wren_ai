@@ -10,13 +10,13 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from anthropic import Anthropic
 
-from .question_classifier import QuestionClassifier
-from .response_generator import ResponseGenerator
-from .sql_generator import SQLGenerator
-from .context_manager import ContextManager
-from .insight_generator import InsightGenerator
-from .exceptions import DataAssistantError
-from .constants import (
+from question_classifier import QuestionClassifier
+from response_generator import ResponseGenerator
+from sql_generator import SQLGenerator
+from context_manager import ContextManager
+from insight_generator import InsightGenerator
+from exceptions import DataAssistantError
+from constants import (
     MIN_RESULTS_FOR_INSIGHTS,
     DEFAULT_NO_DATA_SUGGESTIONS,
     MAX_SUGGESTIONS_TO_SHOW

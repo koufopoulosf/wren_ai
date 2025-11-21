@@ -8,12 +8,12 @@ import logging
 from typing import List, Dict, Any
 from anthropic import Anthropic
 
-from .llm_utils import LLMUtils
-from .constants import (
+from llm_utils import LLMUtils
+from constants import (
     LLM_MAX_TOKENS_CONVERSATIONAL,
     LLM_TEMPERATURE_PRECISE
 )
-from .exceptions import LLMError
+from exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
