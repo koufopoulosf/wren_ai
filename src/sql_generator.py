@@ -256,14 +256,26 @@ class SQLGenerator:
                         content = content[:300] + "..."
                     history_parts.append(f"{role.capitalize()}: {content}")
 
+                    # IMPORTANT: Include SQL from metadata if assistant message
+                    # This helps with follow-up questions like "show me 3 worst ones"
+                    if role == 'assistant':
+                        metadata = msg.get('metadata', {})
+                        sql_query = metadata.get('sql', '')
+                        if sql_query:
+                            # Truncate long SQL to save tokens
+                            if len(sql_query) > 400:
+                                sql_query = sql_query[:400] + "..."
+                            history_parts.append(f"  Previous SQL: {sql_query}")
+
                 conversation_context = f"""
 
 ## Recent Conversation History
 {chr(10).join(history_parts)}
 
-Note: The user's current question may reference this conversation history. Use it to understand context like follow-up questions (e.g., "yes please proceed", "show me more", "what about X?").
+Note: The user's current question may reference this conversation history. Use it to understand context like follow-up questions (e.g., "show me more", "show me 3 worst ones", "what about X?").
+If the question references a previous query (e.g., "worst" after showing "top"), use the Previous SQL to understand the base query and modify it accordingly.
 """
-                logger.debug("✅ Conversation context built")
+                logger.debug("✅ Conversation context built with SQL queries")
             else:
                 logger.debug("No conversation history available")
 
