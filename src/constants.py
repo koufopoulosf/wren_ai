@@ -18,6 +18,7 @@ LLM_MAX_TOKENS_SHORT_EXPLANATION = 200  # Brief explanations
 LLM_MAX_TOKENS_DETAILED_EXPLANATION = 250  # Contextual explanations
 LLM_MAX_TOKENS_CLASSIFICATION = 100  # Question classification
 LLM_MAX_TOKENS_CONVERSATIONAL = 300  # Conversational responses
+LLM_MAX_TOKENS_INSIGHTS = 1000  # Insights generation with full structure
 
 # Temperature settings
 LLM_TEMPERATURE_PRECISE = 0.3  # Low temperature for consistent, precise outputs

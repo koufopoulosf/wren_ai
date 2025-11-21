@@ -1,7 +1,7 @@
 """
-Pipeline Orchestrator (Simplified with Insights)
+Pipeline Orchestrator (Simplified)
 
-Simple, focused pipeline: Understand question → Have data? → Answer + Key insights.
+Simple, focused pipeline: Understand question → Have data? → Answer + Optional insights.
 """
 
 import logging
@@ -15,7 +15,6 @@ from question_classifier import QuestionClassifier
 from response_generator import ResponseGenerator
 from sql_generator import SQLGenerator
 from context_manager import ContextManager
-from insight_generator import InsightGenerator
 from exceptions import DataAssistantError
 from constants import (
     MIN_RESULTS_FOR_INSIGHTS,
@@ -59,16 +58,16 @@ class QueryResponse:
 
 class PipelineOrchestrator:
     """
-    Simple pipeline orchestrator: Understand → Have data? → Answer + Insights.
+    Simple pipeline orchestrator: Understand → Have data? → Answer + Optional insights.
 
     Workflow:
     1. Understand question (with context for follow-ups)
     2. Do we have the data to answer?
-       - YES → Generate SQL → Return results + insights (parallel)
+       - YES → Generate SQL → Return results + explanation
        - NO → Tell user what's missing + suggest alternatives
     3. Remember conversation for next question
 
-    Insights run in parallel with response generation for speed.
+    Insights are generated on-demand when user clicks "Show Key Takeaways" button.
     """
 
     def __init__(
@@ -76,25 +75,22 @@ class PipelineOrchestrator:
         classifier: QuestionClassifier,
         response_generator: ResponseGenerator,
         sql_generator: SQLGenerator,
-        context_manager: ContextManager,
-        insight_generator: InsightGenerator
+        context_manager: ContextManager
     ):
         """
-        Initialize simplified pipeline orchestrator with insights.
+        Initialize simplified pipeline orchestrator.
 
         Args:
             classifier: Question classifier instance
-            response_generator: Response generator instance
+            response_generator: Response generator instance (includes insights generation)
             sql_generator: SQL generator instance
             context_manager: Context manager for conversation memory
-            insight_generator: Insight generator for key takeaways
         """
         self.classifier = classifier
         self.response_generator = response_generator
         self.sql_generator = sql_generator
         self.context_manager = context_manager
-        self.insight_generator = insight_generator
-        logger.info("✅ Simplified pipeline orchestrator initialized with insights")
+        logger.info("✅ Simplified pipeline orchestrator initialized")
 
     async def process(
         self,

@@ -1,7 +1,7 @@
 """
-Component Factory (Simplified with Insights)
+Component Factory (Simplified)
 
-Handles dependency injection for core components + insights.
+Handles dependency injection for core components.
 """
 
 import logging
@@ -12,7 +12,6 @@ from sql_generator import SQLGenerator
 from question_classifier import QuestionClassifier
 from response_generator import ResponseGenerator
 from context_manager import ContextManager
-from insight_generator import InsightGenerator
 from pipeline_orchestrator import PipelineOrchestrator
 
 logger = logging.getLogger(__name__)
@@ -22,14 +21,13 @@ T = TypeVar('T')  # Generic type for component creation
 
 class ComponentFactory:
     """
-    Simplified factory for core components + insights.
+    Simplified factory for core components.
 
     Creates what's essential:
     - SQL generation
     - Question classification
-    - Response generation
+    - Response generation (includes on-demand insights)
     - Context management
-    - Insight generation (runs in parallel)
     """
 
     def __init__(self, config: Config):
@@ -103,38 +101,27 @@ class ComponentFactory:
             model=self.config.ANTHROPIC_MODEL
         )
 
-    def create_insight_generator(self) -> InsightGenerator:
-        """Create and configure insight generator."""
-        return self._create_component(
-            'insight_generator',
-            InsightGenerator,
-            anthropic_client=self.config.anthropic_client,
-            model=self.config.ANTHROPIC_MODEL
-        )
-
     def create_pipeline_orchestrator(self) -> PipelineOrchestrator:
         """
-        Create simplified pipeline orchestrator with insights.
+        Create simplified pipeline orchestrator.
 
         Wires together the essential components:
         - Question classifier
-        - Response generator (runs in parallel with insights)
+        - Response generator (includes on-demand insights generation)
         - SQL generator
         - Context manager
-        - Insight generator (runs in parallel with response)
 
         Returns:
-            Simplified PipelineOrchestrator with parallel insights
+            Simplified PipelineOrchestrator
         """
         if 'pipeline_orchestrator' not in self._components:
             self._components['pipeline_orchestrator'] = PipelineOrchestrator(
                 classifier=self.create_question_classifier(),
                 response_generator=self.create_response_generator(),
                 sql_generator=self.create_sql_generator(),
-                context_manager=self.create_context_manager(),
-                insight_generator=self.create_insight_generator()
+                context_manager=self.create_context_manager()
             )
-            logger.info("✅ Simplified PipelineOrchestrator created with parallel insights")
+            logger.info("✅ Simplified PipelineOrchestrator created")
         return self._components['pipeline_orchestrator']
 
     def get_component(self, component_name: str) -> Optional[object]:
