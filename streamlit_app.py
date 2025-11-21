@@ -697,8 +697,38 @@ def run_async(coro) -> Any:
     This uses a session-specific event loop to ensure all async operations
     (including asyncpg database connections) use the same loop.
     """
+    import asyncio
+
     loop = get_or_create_event_loop()
-    return loop.run_until_complete(coro)
+
+    # Check if the event loop is already running
+    if loop.is_running():
+        # If loop is running, we need to schedule the coroutine differently
+        # Create a new task and wait for it synchronously using a thread
+        import concurrent.futures
+        import threading
+
+        # Create a future to hold the result
+        future = concurrent.futures.Future()
+
+        def run_in_loop():
+            try:
+                task = asyncio.ensure_future(coro, loop=loop)
+                result = asyncio.run_coroutine_threadsafe(coro, loop).result()
+                future.set_result(result)
+            except Exception as e:
+                future.set_exception(e)
+
+        # For already running loops, we can use asyncio.run_coroutine_threadsafe
+        try:
+            result = asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=300)
+            return result
+        except Exception as e:
+            logger.error(f"Error running coroutine in existing event loop: {e}")
+            raise
+    else:
+        # Loop not running, use the standard approach
+        return loop.run_until_complete(coro)
 
 
 def main() -> None:
