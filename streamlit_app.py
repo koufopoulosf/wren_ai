@@ -345,7 +345,7 @@ def display_message(role: str, content: str, metadata: Dict[str, Any] = None) ->
                 df = pd.DataFrame(results)
 
                 with st.expander(f"📊 Results ({len(results)} rows)", expanded=True):
-                    st.dataframe(df, use_container_width=True, height=min(400, len(results) * 35 + 38))
+                    st.dataframe(df, width='stretch', height=min(400, len(results) * 35 + 38))
 
                     # Action buttons row 1: Export options
                     col1, col2, col3 = st.columns(3)
@@ -359,7 +359,7 @@ def display_message(role: str, content: str, metadata: Dict[str, Any] = None) ->
                             f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                             "text/csv",
                             key=f"csv_{metadata.get('timestamp', '')}",
-                            use_container_width=True
+                            width='stretch'
                         )
 
                     with col2:
@@ -383,18 +383,18 @@ def display_message(role: str, content: str, metadata: Dict[str, Any] = None) ->
                             f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             key=f"excel_{metadata.get('timestamp', '')}",
-                            use_container_width=True
+                            width='stretch'
                         )
 
                     with col3:
                         # Chart button
-                        if st.button("📈 Chart", key=f"chart_{metadata.get('timestamp', '')}", use_container_width=True):
+                        if st.button("📈 Chart", key=f"chart_{metadata.get('timestamp', '')}", width='stretch'):
                             st.session_state[f'show_chart_{metadata.get("timestamp", "")}'] = True
 
                     # Action buttons row 2: Insights button (only if insights not already shown)
                     if not metadata.get('insights'):
                         st.markdown("")  # Spacing
-                        if st.button("💎 Show Key Takeaways & Recommendations", key=f"insights_btn_{metadata.get('timestamp', '')}", use_container_width=True):
+                        if st.button("💎 Show Key Takeaways & Recommendations", key=f"insights_btn_{metadata.get('timestamp', '')}", width='stretch'):
                             timestamp = metadata.get("timestamp", "")
                             if not timestamp:
                                 logger.error("Button clicked but timestamp is missing from metadata")
@@ -598,7 +598,7 @@ def create_chart(df: pd.DataFrame, unique_id: str = "") -> None:
         y_col = st.selectbox("Y-axis", numeric_cols, key=f"bar_y_{unique_id}")
 
         fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     elif chart_type == "Stacked Bar" and len(numeric_cols) >= 1:
         x_col = st.selectbox("X-axis", all_cols, key=f"stacked_x_{unique_id}")
@@ -615,28 +615,28 @@ def create_chart(df: pd.DataFrame, unique_id: str = "") -> None:
             fig = px.bar(df, x=x_col, y=y_col, color=color_col, title=f"{y_col} by {x_col} (stacked by {color_col})", barmode='stack')
         else:
             fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}", barmode='stack')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     elif chart_type == "Line Chart" and len(numeric_cols) >= 1:
         x_col = st.selectbox("X-axis", all_cols, key=f"line_x_{unique_id}")
         y_col = st.selectbox("Y-axis", numeric_cols, key=f"line_y_{unique_id}")
 
         fig = px.line(df, x=x_col, y=y_col, title=f"{y_col} over {x_col}")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     elif chart_type == "Scatter Plot" and len(numeric_cols) >= 2:
         x_col = st.selectbox("X-axis", numeric_cols, key=f"scatter_x_{unique_id}")
         y_col = st.selectbox("Y-axis", numeric_cols, key=f"scatter_y_{unique_id}")
 
         fig = px.scatter(df, x=x_col, y=y_col, title=f"{y_col} vs {x_col}")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     elif chart_type == "Pie Chart":
         label_col = st.selectbox("Labels", all_cols, key=f"pie_labels_{unique_id}")
         value_col = st.selectbox("Values", numeric_cols, key=f"pie_values_{unique_id}") if numeric_cols else all_cols[0]
 
         fig = px.pie(df, names=label_col, values=value_col, title=f"Distribution of {value_col}")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     elif chart_type == "Treemap" and len(all_cols) >= 2:
         st.info("💡 Treemap works best with hierarchical data (e.g., category → subcategory → value)")
@@ -665,13 +665,13 @@ def create_chart(df: pd.DataFrame, unique_id: str = "") -> None:
             else:
                 # Count-based treemap when no numeric column
                 fig = px.treemap(df, path=path_cols, title=f"Treemap of {path_cols[0]}")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         except Exception as e:
             st.error(f"Could not create treemap: {str(e)}")
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width='stretch')
 
     else:
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
 
 
 def get_or_create_event_loop() -> asyncio.AbstractEventLoop:
@@ -776,7 +776,7 @@ def main() -> None:
 
         for idx, example in enumerate(examples):
             with col1 if idx % 2 == 0 else col2:
-                if st.button(f"💬 {example}", key=f"ex_{idx}", use_container_width=True):
+                if st.button(f"💬 {example}", key=f"ex_{idx}", width='stretch'):
                     st.session_state.current_question = example
                     st.rerun()
 
@@ -785,7 +785,7 @@ def main() -> None:
         # Add clear button at top when there are messages
         col1, col2, col3 = st.columns([1, 1, 6])
         with col1:
-            if st.button("🗑️ Clear", use_container_width=True):
+            if st.button("🗑️ Clear", width='stretch'):
                 st.session_state.messages = []
                 st.rerun()
 
@@ -799,7 +799,16 @@ def main() -> None:
 
             # Check if insights were requested for this message
             request_key = f'request_insights_{timestamp}'
+            processing_key = f'processing_insights_{timestamp}'
+
+            # Skip if already processing to prevent duplicate API calls
+            if st.session_state.get(processing_key):
+                logger.info(f"Skipping duplicate insights request - already processing for timestamp: {timestamp}")
+                continue
+
             if st.session_state.get(request_key):
+                # Set processing flag to prevent duplicate requests
+                st.session_state[processing_key] = True
                 logger.info(f"Processing insights request for timestamp: {timestamp}")
 
                 # Validate required fields
@@ -816,8 +825,8 @@ def main() -> None:
                 if not sql:
                     logger.warning(f"Missing SQL field in metadata for timestamp: {timestamp}")
 
-                # Generate insights
-                with st.spinner("💎 Generating key takeaways and recommendations..."):
+                # Generate insights with better loading indicator
+                with st.spinner("💎 Analyzing data and generating insights... This may take 10-15 seconds."):
                     try:
                         logger.info(f"Calling generate_insights_for_response for timestamp: {timestamp}")
                         insights = run_async(st.session_state.assistant.orchestrator.generate_insights_for_response(
@@ -843,9 +852,11 @@ def main() -> None:
                         st.error(f"Failed to generate insights: {str(e)}")
 
                     finally:
-                        # Always clear the request flag
+                        # Always clear both flags
                         if request_key in st.session_state:
                             del st.session_state[request_key]
+                        if processing_key in st.session_state:
+                            del st.session_state[processing_key]
                         st.rerun()
 
     for message in st.session_state.messages:
@@ -880,11 +891,6 @@ def main() -> None:
         display_message('user', question, None)
         logger.debug("User message displayed in UI")
 
-        # Show thinking status below the question
-        thinking_placeholder = st.empty()
-        with thinking_placeholder:
-            st.info("🤔 Thinking...")
-
         # Get or create session_id for context management
         if 'session_id' not in st.session_state:
             import hashlib
@@ -898,22 +904,32 @@ def main() -> None:
         conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
         logger.info(f"Building conversation context with {len(conversation_history)} previous messages")
 
-        # Process question with conversation context and session_id
+        # Show streaming progress with st.status
         logger.info("🔄 Starting question processing pipeline...")
         start_time = datetime.now()
 
-        response = run_async(st.session_state.assistant.process_question(
-            question=question,
-            session_id=st.session_state.session_id,
-            conversation_history=conversation_history
-        ))
+        with st.status("Processing your question...", expanded=True) as status:
+            st.write("⚡ Checking cache...")
 
-        elapsed_time = (datetime.now() - start_time).total_seconds()
-        logger.info(f"✅ Question processing completed in {elapsed_time:.2f}s")
-        logger.info(f"Response success: {response.get('success', False)}")
+            st.write("🔍 Understanding your question...")
 
-        # Clear thinking message
-        thinking_placeholder.empty()
+            st.write("💻 Generating SQL query...")
+
+            st.write("⚡ Executing query...")
+
+            # Process question with conversation context and session_id
+            response = run_async(st.session_state.assistant.process_question(
+                question=question,
+                session_id=st.session_state.session_id,
+                conversation_history=conversation_history
+            ))
+
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"✅ Question processing completed in {elapsed_time:.2f}s")
+            logger.info(f"Response success: {response.get('success', False)}")
+
+            st.write(f"✅ Complete in {elapsed_time:.1f}s!")
+            status.update(label="✅ Processing complete!", state="complete")
 
         # Prepare assistant message
         if response['success']:

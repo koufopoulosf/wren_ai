@@ -6,6 +6,8 @@ Simple, focused pipeline: Understand question → Have data? → Answer + Option
 
 import logging
 import asyncio
+import hashlib
+import time
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -90,7 +92,84 @@ class PipelineOrchestrator:
         self.response_generator = response_generator
         self.sql_generator = sql_generator
         self.context_manager = context_manager
-        logger.info("✅ Simplified pipeline orchestrator initialized")
+
+        # Results cache: {cache_key: (results, timestamp)}
+        self._results_cache = {}
+        self._cache_ttl = 300  # 5 minutes
+
+        logger.info("✅ Simplified pipeline orchestrator initialized with results caching")
+
+    def _get_cache_key(self, question: str, session_id: str) -> str:
+        """Generate cache key for a query."""
+        combined = f"{session_id}:{question.lower().strip()}"
+        return hashlib.md5(combined.encode()).hexdigest()
+
+    def _check_cache(self, cache_key: str) -> Optional[Dict]:
+        """Check if results are cached and still valid."""
+        if cache_key in self._results_cache:
+            cached_data, timestamp = self._results_cache[cache_key]
+            age = time.time() - timestamp
+            if age < self._cache_ttl:
+                logger.info(f"✅ Cache HIT! (age: {age:.1f}s, TTL: {self._cache_ttl}s) - Instant response!")
+                return cached_data
+            else:
+                logger.debug(f"Cache expired (age: {age:.1f}s > TTL: {self._cache_ttl}s)")
+                del self._results_cache[cache_key]
+        return None
+
+    def _store_in_cache(self, cache_key: str, data: Dict) -> None:
+        """Store results in cache."""
+        self._results_cache[cache_key] = (data, time.time())
+        logger.debug(f"📦 Stored in cache (total cached queries: {len(self._results_cache)})")
+
+    def _generate_template_response(self, results: List[Dict], question: str) -> Optional[str]:
+        """
+        Generate fast template-based response for simple queries.
+        Returns None if template doesn't apply.
+        """
+        if not results:
+            return None
+
+        num_results = len(results)
+
+        # Single value result (e.g., MAX, MIN, COUNT, SUM, AVG)
+        if num_results == 1 and len(results[0]) == 1:
+            key = list(results[0].keys())[0]
+            value = results[0][key]
+
+            # Format the value nicely
+            if isinstance(value, (int, float)):
+                if value > 1000000:
+                    formatted = f"${value:,.2f}" if 'price' in key.lower() or 'usd' in key.lower() or 'volume' in key.lower() else f"{value:,.0f}"
+                else:
+                    formatted = f"${value:,.2f}" if 'price' in key.lower() or 'usd' in key.lower() else f"{value:,.0f}"
+            else:
+                formatted = str(value)
+
+            logger.info("⚡ Using template response for single-value result (instant!)")
+            return f"The result is **{formatted}**."
+
+        # Top N results (common pattern)
+        if num_results <= 10 and num_results > 0:
+            first_row = results[0]
+            if len(first_row) >= 2:
+                # Assume first column is name/label, second is value
+                cols = list(first_row.keys())
+                name_col, value_col = cols[0], cols[1]
+
+                top_item = results[0]
+                top_name = top_item[name_col]
+                top_value = top_item[value_col]
+
+                logger.info(f"⚡ Using template response for top-N results (instant!)")
+                if isinstance(top_value, (int, float)):
+                    formatted_val = f"${top_value:,.2f}" if 'usd' in value_col.lower() or 'price' in value_col.lower() else f"{top_value:,.0f}"
+                else:
+                    formatted_val = str(top_value)
+
+                return f"Found {num_results} results. Top result: **{top_name}** with {formatted_val}."
+
+        return None
 
     async def process(
         self,
@@ -120,6 +199,13 @@ class PipelineOrchestrator:
         start_time = datetime.now()
 
         try:
+            # Check cache first
+            cache_key = self._get_cache_key(question, session_id)
+            cached_result = self._check_cache(cache_key)
+            if cached_result:
+                logger.info("📦 Returning cached result (instant response!)")
+                return cached_result
+
             # Store user question in context
             logger.debug(f"Storing user question in context manager (session: {session_id})")
             self.context_manager.add_message(
@@ -129,31 +215,24 @@ class PipelineOrchestrator:
             )
             logger.debug("✅ User question stored in context")
 
-            # Step 1 & 2: Resolve references and classify question
-            logger.info("STEP 1: Resolving references and classifying question...")
+            # Step 1: Resolve references only (skip expensive classification)
+            logger.info("STEP 1: Resolving references...")
             step_start = datetime.now()
 
-            resolved_question, classification = await self._resolve_and_classify_question(
-                question, session_id
+            resolved_question = await self.context_manager.resolve_references(
+                question=question,
+                session_id=session_id
             )
             response.resolved_question = resolved_question
+
+            if resolved_question != question:
+                logger.info(f"📝 Resolved: '{question}' → '{resolved_question}'")
 
             step_elapsed = (datetime.now() - step_start).total_seconds()
             logger.info(f"✅ STEP 1 completed in {step_elapsed:.2f}s")
             logger.info(f"Resolved question: {resolved_question}")
-            logger.info(f"Classification: is_data_query={classification.get('is_data_query', True)}")
 
-            # Handle meta queries (non-data questions)
-            if not classification.get('is_data_query', True):
-                logger.info("⚡ Detected meta query (non-data question), handling directly")
-                result = self._handle_meta_query(
-                    response, classification, session_id
-                ).to_dict()
-                total_elapsed = (datetime.now() - start_time).total_seconds()
-                logger.info(f"✅ Pipeline completed in {total_elapsed:.2f}s (meta query)")
-                return result
-
-            # Step 3: Generate SQL and execute
+            # Step 2: Generate SQL and execute (classification removed for speed)
             logger.info("STEP 2: Generating and executing SQL...")
             step_start = datetime.now()
 
@@ -176,16 +255,31 @@ class PipelineOrchestrator:
                 logger.info(f"✅ Pipeline completed in {total_elapsed:.2f}s (no data)")
                 return result
 
-            # Step 4: Generate response explanation only (insights are optional via UI button)
+            # Step 3: Generate response explanation (try template first, then LLM)
             logger.info("STEP 3: Generating response explanation...")
             step_start = datetime.now()
 
-            response = await self._generate_response_explanation_only(
-                response, resolved_question, sql_result, conversation_history
+            # Try fast template-based response first
+            template_response = self._generate_template_response(
+                sql_result.get('results', []),
+                resolved_question
             )
 
-            step_elapsed = (datetime.now() - step_start).total_seconds()
-            logger.info(f"✅ STEP 3 completed in {step_elapsed:.2f}s")
+            if template_response:
+                # Template worked! Super fast response
+                response.sql = sql_result.get('sql', '')
+                response.results = sql_result.get('results', [])
+                response.explanation = template_response
+                step_elapsed = (datetime.now() - step_start).total_seconds()
+                logger.info(f"✅ STEP 3 completed in {step_elapsed:.2f}s (template)")
+            else:
+                # Fall back to LLM for complex responses
+                response = await self._generate_response_explanation_only(
+                    response, resolved_question, sql_result, conversation_history
+                )
+                step_elapsed = (datetime.now() - step_start).total_seconds()
+                logger.info(f"✅ STEP 3 completed in {step_elapsed:.2f}s (LLM)")
+
             logger.info(f"Explanation length: {len(response.explanation)} chars")
 
             response.success = True
@@ -203,6 +297,10 @@ class PipelineOrchestrator:
             logger.info(f"✅ PIPELINE COMPLETED SUCCESSFULLY in {total_elapsed:.2f}s")
             logger.info("=" * 80)
 
+            # Store in cache for future requests
+            result_dict = response.to_dict()
+            self._store_in_cache(cache_key, result_dict)
+
         except Exception as e:
             total_elapsed = (datetime.now() - start_time).total_seconds()
             logger.error("=" * 80)
@@ -217,54 +315,6 @@ class PipelineOrchestrator:
 
         return response.to_dict()
 
-    async def _resolve_and_classify_question(
-        self, question: str, session_id: str
-    ) -> tuple[str, Dict]:
-        """
-        Resolve question references and classify question type.
-
-        Args:
-            question: User's question
-            session_id: Session identifier
-
-        Returns:
-            Tuple of (resolved_question, classification)
-        """
-        # Resolve references using context (e.g., "show me more" → "show me more Bitcoin prices")
-        resolved_question = await self.context_manager.resolve_references(
-            question=question,
-            session_id=session_id
-        )
-
-        if resolved_question != question:
-            logger.info(f"📝 Resolved: '{question}' → '{resolved_question}'")
-
-        # Classify question (data query vs. meta question)
-        classification = await self.classifier.classify(resolved_question)
-
-        return resolved_question, classification
-
-    def _handle_meta_query(
-        self,
-        response: QueryResponse,
-        classification: Dict,
-        session_id: str
-    ) -> QueryResponse:
-        """
-        Handle non-data queries (e.g., "what can you do?").
-
-        Args:
-            response: Response object to populate
-            classification: Classification result
-            session_id: Session identifier
-
-        Returns:
-            Populated QueryResponse
-        """
-        response.success = True
-        response.explanation = classification.get('response', '')
-        self._store_assistant_response(session_id, response.explanation)
-        return response
 
     async def _generate_sql_and_results(
         self,

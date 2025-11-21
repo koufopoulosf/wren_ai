@@ -34,7 +34,8 @@ class LLMUtils:
         prompt: str,
         max_tokens: int = LLM_MAX_TOKENS_SQL_GENERATION,
         temperature: Optional[float] = None,
-        system: Optional[str] = None
+        system: Optional[str] = None,
+        enable_caching: bool = False
     ) -> str:
         """
         Call Claude API asynchronously using event loop executor.
@@ -50,6 +51,7 @@ class LLMUtils:
             max_tokens: Maximum tokens in response
             temperature: Sampling temperature (None uses model default)
             system: Optional system prompt
+            enable_caching: Enable prompt caching for the system message (reduces costs by 90% for repeated context)
 
         Returns:
             Response text from Claude
@@ -67,6 +69,7 @@ class LLMUtils:
         logger.info(f"Temperature: {temperature if temperature is not None else 'default'}")
         logger.info(f"Prompt length: {len(prompt)} chars")
         logger.info(f"Has system prompt: {bool(system)}")
+        logger.info(f"Caching enabled: {enable_caching}")
         logger.info("=" * 80)
 
         start_time = time.time()
@@ -86,9 +89,30 @@ class LLMUtils:
             if temperature is not None:
                 params["temperature"] = temperature
 
+            # Add system prompt with optional caching
             if system is not None:
-                params["system"] = system
-                logger.debug(f"System prompt length: {len(system)} chars")
+                if enable_caching:
+                    # Use prompt caching for system message
+                    # This marks the schema for caching, reducing costs by 90% on subsequent calls
+                    params["system"] = [
+                        {
+                            "type": "text",
+                            "text": system,
+                            "cache_control": {"type": "ephemeral"}
+                        }
+                    ]
+                    logger.debug(f"System prompt with caching enabled (length: {len(system)} chars)")
+                else:
+                    params["system"] = system
+                    logger.debug(f"System prompt length: {len(system)} chars")
+
+            # Add caching header if enabled
+            extra_headers = {}
+            if enable_caching:
+                extra_headers["anthropic-beta"] = "prompt-caching-2024-07-31"
+                logger.debug("Added prompt caching beta header")
+
+            params["extra_headers"] = extra_headers
 
             logger.info("Sending request to Claude API...")
 
@@ -107,6 +131,17 @@ class LLMUtils:
                 logger.info(f"API usage - Output tokens: {message.usage.output_tokens}")
                 total_tokens = message.usage.input_tokens + message.usage.output_tokens
                 logger.info(f"API usage - Total tokens: {total_tokens}")
+
+                # Log cache usage if caching is enabled
+                if enable_caching and hasattr(message.usage, 'cache_creation_input_tokens'):
+                    cache_create = getattr(message.usage, 'cache_creation_input_tokens', 0)
+                    cache_read = getattr(message.usage, 'cache_read_input_tokens', 0)
+                    if cache_create > 0:
+                        logger.info(f"API usage - Cache write tokens: {cache_create} (costs 25% more)")
+                    if cache_read > 0:
+                        logger.info(f"API usage - Cache read tokens: {cache_read} (costs 10% of normal, 90% savings!)")
+                        savings_pct = (cache_read / (cache_read + message.usage.input_tokens)) * 100 if cache_read > 0 else 0
+                        logger.info(f"API usage - Cache hit rate: {savings_pct:.1f}%")
             else:
                 logger.debug("No usage information available from API response")
 
