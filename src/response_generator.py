@@ -104,14 +104,24 @@ class ResponseGenerator:
         Raises:
             Exception: If insights generation fails (with detailed error message)
         """
-        try:
-            logger.info(f"Building insights prompt for question: {question[:100]}...")
+        logger.info("=" * 80)
+        logger.info("INSIGHT GENERATOR - GENERATING INSIGHTS")
+        logger.info(f"Question: {question[:100]}...")
+        logger.info(f"Results count: {len(results) if results else 0}")
+        logger.info(f"SQL length: {len(sql) if sql else 0} chars")
+        logger.info("=" * 80)
 
+        import time
+        start_time = time.time()
+
+        try:
             # Validate inputs
             if not question:
+                logger.error("❌ Question is empty - cannot generate insights")
                 raise ValueError("Question cannot be empty")
+
             if not results or not isinstance(results, list):
-                logger.warning("No results provided for insights generation")
+                logger.warning("⚠️ No results provided for insights generation - returning empty structure")
                 # Return empty insights structure rather than failing
                 return {
                     'summary': '',
@@ -121,7 +131,12 @@ class ResponseGenerator:
                     'recommendations': []
                 }
 
+            logger.info(f"Validated inputs - {len(results)} rows available for analysis")
+
             # Build insights-only prompt
+            logger.info("Building insights prompt...")
+            prompt_start = time.time()
+
             prompt = self._build_insights_only_prompt(
                 question=question,
                 sql=sql,
@@ -129,9 +144,14 @@ class ResponseGenerator:
                 conversation_history=conversation_history
             )
 
-            logger.info("Calling Claude API for insights generation...")
+            prompt_elapsed = time.time() - prompt_start
+            logger.info(f"✅ Prompt built in {prompt_elapsed:.2f}s (length: {len(prompt)} chars)")
 
             # Generate insights
+            logger.info("Calling Claude API for insights generation...")
+            logger.debug(f"Model: {self.model}, Max tokens: {LLM_MAX_TOKENS_CONVERSATIONAL}")
+            llm_start = time.time()
+
             response_text = await LLMUtils.call_claude_async(
                 client=self.client,
                 model=self.model,
@@ -140,12 +160,15 @@ class ResponseGenerator:
                 temperature=LLM_TEMPERATURE_PRECISE
             )
 
-            logger.info(f"Received response from Claude API (length: {len(response_text)})")
+            llm_elapsed = time.time() - llm_start
+            logger.info(f"✅ Claude API call completed in {llm_elapsed:.2f}s")
+            logger.info(f"Response length: {len(response_text)} chars")
 
             # Parse JSON response
+            logger.debug("Parsing JSON response...")
             try:
                 insights = json.loads(response_text)
-                logger.info("Successfully parsed insights JSON")
+                logger.info("✅ Successfully parsed insights JSON")
 
                 # Validate structure
                 expected_fields = ['summary', 'top_findings', 'trends', 'outliers', 'recommendations']

@@ -8,6 +8,7 @@ import logging
 import asyncio
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
+from datetime import datetime
 from anthropic import Anthropic
 
 from question_classifier import QuestionClassifier
@@ -112,47 +113,89 @@ class PipelineOrchestrator:
         Returns:
             Dictionary representation of QueryResponse
         """
+        logger.info("=" * 80)
+        logger.info("PIPELINE ORCHESTRATOR - PROCESSING NEW QUESTION")
+        logger.info(f"Question: {question}")
+        logger.info(f"Session ID: {session_id}")
+        logger.info(f"History length: {len(conversation_history) if conversation_history else 0}")
+        logger.info("=" * 80)
+
         response = QueryResponse()
+        start_time = datetime.now()
 
         try:
             # Store user question in context
+            logger.debug(f"Storing user question in context manager (session: {session_id})")
             self.context_manager.add_message(
                 session_id=session_id,
                 role='user',
                 content=question
             )
+            logger.debug("✅ User question stored in context")
 
             # Step 1 & 2: Resolve references and classify question
+            logger.info("STEP 1: Resolving references and classifying question...")
+            step_start = datetime.now()
+
             resolved_question, classification = await self._resolve_and_classify_question(
                 question, session_id
             )
             response.resolved_question = resolved_question
 
+            step_elapsed = (datetime.now() - step_start).total_seconds()
+            logger.info(f"✅ STEP 1 completed in {step_elapsed:.2f}s")
+            logger.info(f"Resolved question: {resolved_question}")
+            logger.info(f"Classification: is_data_query={classification.get('is_data_query', True)}")
+
             # Handle meta queries (non-data questions)
             if not classification.get('is_data_query', True):
-                return self._handle_meta_query(
+                logger.info("⚡ Detected meta query (non-data question), handling directly")
+                result = self._handle_meta_query(
                     response, classification, session_id
                 ).to_dict()
+                total_elapsed = (datetime.now() - start_time).total_seconds()
+                logger.info(f"✅ Pipeline completed in {total_elapsed:.2f}s (meta query)")
+                return result
 
             # Step 3: Generate SQL and execute
+            logger.info("STEP 2: Generating and executing SQL...")
+            step_start = datetime.now()
+
             sql_result = await self._generate_sql_and_results(
                 resolved_question, conversation_history
             )
 
+            step_elapsed = (datetime.now() - step_start).total_seconds()
+            logger.info(f"✅ STEP 2 completed in {step_elapsed:.2f}s")
+            logger.info(f"SQL generated: {bool(sql_result.get('sql', ''))}")
+            logger.info(f"Results count: {len(sql_result.get('results', []))}")
+
             # Handle case where we don't have the data
             if not sql_result.get('sql', ''):
-                return self._handle_no_data_found(
+                logger.warning("⚠️ No SQL generated - missing required data")
+                result = self._handle_no_data_found(
                     response, resolved_question, sql_result, session_id
                 ).to_dict()
+                total_elapsed = (datetime.now() - start_time).total_seconds()
+                logger.info(f"✅ Pipeline completed in {total_elapsed:.2f}s (no data)")
+                return result
 
             # Step 4: Generate response explanation only (insights are optional via UI button)
+            logger.info("STEP 3: Generating response explanation...")
+            step_start = datetime.now()
+
             response = await self._generate_response_explanation_only(
                 response, resolved_question, sql_result, conversation_history
             )
 
+            step_elapsed = (datetime.now() - step_start).total_seconds()
+            logger.info(f"✅ STEP 3 completed in {step_elapsed:.2f}s")
+            logger.info(f"Explanation length: {len(response.explanation)} chars")
+
             response.success = True
 
             # Store in context
+            logger.debug("Storing assistant response with data in context")
             self._store_assistant_response_with_data(
                 session_id=session_id,
                 explanation=response.explanation,
@@ -160,8 +203,18 @@ class PipelineOrchestrator:
                 results=response.results
             )
 
+            total_elapsed = (datetime.now() - start_time).total_seconds()
+            logger.info(f"✅ PIPELINE COMPLETED SUCCESSFULLY in {total_elapsed:.2f}s")
+            logger.info("=" * 80)
+
         except Exception as e:
-            logger.error(f"❌ Pipeline error: {e}", exc_info=True)
+            total_elapsed = (datetime.now() - start_time).total_seconds()
+            logger.error("=" * 80)
+            logger.error(f"❌ PIPELINE ERROR after {total_elapsed:.2f}s")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error message: {str(e)}")
+            logger.error("=" * 80, exc_info=True)
+
             response.explanation = f"Sorry, I encountered an error: {str(e)}"
             response.success = False
             self._store_assistant_response(session_id, response.explanation)
