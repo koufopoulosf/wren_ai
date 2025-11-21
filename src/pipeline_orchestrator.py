@@ -1,10 +1,11 @@
 """
-Pipeline Orchestrator (Simplified)
+Pipeline Orchestrator (Simplified with Insights)
 
-Simple, focused pipeline: Understand question → Have data? → Answer or suggest alternatives.
+Simple, focused pipeline: Understand question → Have data? → Answer + Key insights.
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, List
 from anthropic import Anthropic
 
@@ -12,6 +13,7 @@ from .question_classifier import QuestionClassifier
 from .response_generator import ResponseGenerator
 from .sql_generator import SQLGenerator
 from .context_manager import ContextManager
+from .insight_generator import InsightGenerator
 from .exceptions import DataAssistantError
 
 logger = logging.getLogger(__name__)
@@ -19,16 +21,16 @@ logger = logging.getLogger(__name__)
 
 class PipelineOrchestrator:
     """
-    Simple pipeline orchestrator: Understand → Have data? → Answer or suggest.
+    Simple pipeline orchestrator: Understand → Have data? → Answer + Insights.
 
     Workflow:
     1. Understand question (with context for follow-ups)
     2. Do we have the data to answer?
-       - YES → Generate SQL → Return results
+       - YES → Generate SQL → Return results + insights (parallel)
        - NO → Tell user what's missing + suggest alternatives
     3. Remember conversation for next question
 
-    No complexity, just focused answers.
+    Insights run in parallel with response generation for speed.
     """
 
     def __init__(
@@ -36,22 +38,25 @@ class PipelineOrchestrator:
         classifier: QuestionClassifier,
         response_generator: ResponseGenerator,
         sql_generator: SQLGenerator,
-        context_manager: ContextManager
+        context_manager: ContextManager,
+        insight_generator: InsightGenerator
     ):
         """
-        Initialize simplified pipeline orchestrator.
+        Initialize simplified pipeline orchestrator with insights.
 
         Args:
             classifier: Question classifier instance
             response_generator: Response generator instance
             sql_generator: SQL generator instance
             context_manager: Context manager for conversation memory
+            insight_generator: Insight generator for key takeaways
         """
         self.classifier = classifier
         self.response_generator = response_generator
         self.sql_generator = sql_generator
         self.context_manager = context_manager
-        logger.info("✅ Simplified pipeline orchestrator initialized")
+        self.insight_generator = insight_generator
+        logger.info("✅ Simplified pipeline orchestrator initialized with insights")
 
     async def process(
         self,
@@ -74,7 +79,8 @@ class PipelineOrchestrator:
                 'results': List[Dict],
                 'explanation': str,
                 'suggestions': List[str],
-                'resolved_question': str
+                'resolved_question': str,
+                'insights': Dict  # Key takeaways (only if results have 3+ rows)
             }
         """
         response = self._create_empty_response()
@@ -140,14 +146,44 @@ class PipelineOrchestrator:
             response['sql'] = sql
             response['results'] = results
 
-            # Step 4: Generate simple explanation of results
-            explanation = await self.response_generator.generate(
-                question=question,
-                sql=sql,
-                results=results,
-                conversation_history=conversation_history
-            )
-            response['explanation'] = explanation
+            # Step 4: Generate explanation + insights in parallel (if we have results)
+            if results and len(results) >= 3:
+                # Both need same inputs, so run in parallel for speed!
+                explanation_task = self.response_generator.generate(
+                    question=question,
+                    sql=sql,
+                    results=results,
+                    conversation_history=conversation_history
+                )
+
+                insights_task = self.insight_generator.generate_insights(
+                    question=question,
+                    sql=sql,
+                    results=results
+                )
+
+                # Run both at the same time
+                explanation, insights = await asyncio.gather(
+                    explanation_task,
+                    insights_task
+                )
+
+                response['explanation'] = explanation
+                response['insights'] = insights.to_dict()
+
+                # Add insight summary to suggestions if available
+                if insights.has_insights() and insights.summary:
+                    response['suggestions'].insert(0, f"💡 {insights.summary}")
+            else:
+                # Just explanation for empty results or small datasets
+                explanation = await self.response_generator.generate(
+                    question=question,
+                    sql=sql,
+                    results=results,
+                    conversation_history=conversation_history
+                )
+                response['explanation'] = explanation
+                response['insights'] = None
 
             # Step 5: Add helpful suggestions if results are empty
             if not results or len(results) == 0:
@@ -186,7 +222,8 @@ class PipelineOrchestrator:
             'results': [],
             'explanation': '',
             'suggestions': [],
-            'resolved_question': ''
+            'resolved_question': '',
+            'insights': None
         }
 
     def _generate_no_data_response(self, question: str, result: Dict) -> str:
