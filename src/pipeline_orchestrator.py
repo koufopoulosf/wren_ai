@@ -270,7 +270,10 @@ class PipelineOrchestrator:
         conversation_history: list
     ) -> QueryResponse:
         """
-        Generate explanation and insights (in parallel when possible).
+        Generate explanation and insights in a SINGLE unified LLM call.
+
+        This replaces the previous approach of making separate parallel calls to
+        response_generator and insight_generator.
 
         Args:
             response: Response object to populate
@@ -287,36 +290,23 @@ class PipelineOrchestrator:
         response.sql = sql
         response.results = results
 
-        # Generate insights in parallel if we have meaningful data
-        if results and len(results) >= MIN_RESULTS_FOR_INSIGHTS:
-            explanation, insights = await asyncio.gather(
-                self.response_generator.generate(
-                    question=question,
-                    sql=sql,
-                    results=results,
-                    conversation_history=conversation_history
-                ),
-                self.insight_generator.generate_insights(
-                    question=question,
-                    sql=sql,
-                    results=results
-                )
-            )
+        # Generate unified response with explanation AND insights in ONE LLM call
+        unified_response = await self.response_generator.generate_with_insights(
+            question=question,
+            sql=sql,
+            results=results,
+            conversation_history=conversation_history
+        )
 
-            response.explanation = explanation
-            response.insights = insights.to_dict()
+        # Extract explanation and insights from unified response
+        response.explanation = unified_response.get('explanation', '')
+        response.insights = unified_response.get('insights', {})
 
-            # Add insight summary to suggestions
-            if insights.has_insights() and insights.summary:
-                response.suggestions.insert(0, f"💡 {insights.summary}")
-        else:
-            # Just explanation for empty/small datasets
-            response.explanation = await self.response_generator.generate(
-                question=question,
-                sql=sql,
-                results=results,
-                conversation_history=conversation_history
-            )
+        # Add insight summary to suggestions if present
+        if response.insights and isinstance(response.insights, dict):
+            summary = response.insights.get('summary')
+            if summary:
+                response.suggestions.insert(0, f"💡 {summary}")
 
         # Add suggestions for empty results
         if not results:
