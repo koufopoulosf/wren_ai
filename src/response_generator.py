@@ -167,7 +167,9 @@ class ResponseGenerator:
             # Parse JSON response
             logger.debug("Parsing JSON response...")
             try:
-                insights = json.loads(response_text)
+                # Strip markdown code fences if present
+                cleaned_text = self._strip_markdown_fences(response_text)
+                insights = json.loads(cleaned_text)
                 logger.info("✅ Successfully parsed insights JSON")
 
                 # Validate structure
@@ -256,8 +258,10 @@ class ResponseGenerator:
 
             # Parse structured response
             try:
+                # Strip markdown code fences if present
+                cleaned_text = self._strip_markdown_fences(response_text)
                 # Try to parse as JSON
-                response_data = json.loads(response_text)
+                response_data = json.loads(cleaned_text)
 
                 # Validate structure - ensure required fields exist
                 if 'explanation' not in response_data:
@@ -670,6 +674,38 @@ IMPORTANT: Base your response on the ACTUAL data shown in the "Actual Query Resu
 Generate your response:"""
 
         return prompt
+
+    @staticmethod
+    def _strip_markdown_fences(text: str) -> str:
+        """
+        Strip markdown code fences from JSON response.
+
+        Claude sometimes wraps JSON in ```json ... ``` markers.
+        This function removes those markers to allow proper JSON parsing.
+
+        Args:
+            text: Raw response text that may contain markdown fences
+
+        Returns:
+            Clean text ready for JSON parsing
+        """
+        import re
+
+        # Strip leading/trailing whitespace
+        text = text.strip()
+
+        # Remove markdown code fences (```json ... ``` or ``` ... ```)
+        # Pattern matches:
+        # - Optional opening fence with optional language identifier
+        # - Content (captured)
+        # - Optional closing fence
+        pattern = r'^```(?:json)?\s*\n?(.*?)\n?```$'
+        match = re.match(pattern, text, re.DOTALL)
+
+        if match:
+            return match.group(1).strip()
+
+        return text
 
     @staticmethod
     def _format_results_for_prompt(results: List[Dict], max_rows: int = 1000) -> str:
