@@ -1,40 +1,73 @@
 """
-Pipeline Orchestrator
+Pipeline Orchestrator (Simplified with Insights)
 
-Orchestrates the query processing pipeline from question to results.
+Simple, focused pipeline: Understand question → Have data? → Answer + Key insights.
 """
 
 import logging
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass, field
 from anthropic import Anthropic
 
 from .question_classifier import QuestionClassifier
 from .response_generator import ResponseGenerator
 from .sql_generator import SQLGenerator
-from .result_validator import ResultValidator
 from .context_manager import ContextManager
-from .response_validator import ResponseValidator
 from .insight_generator import InsightGenerator
-from .confidence_calculator import ConfidenceCalculator
 from .exceptions import DataAssistantError
+from .constants import (
+    MIN_RESULTS_FOR_INSIGHTS,
+    DEFAULT_NO_DATA_SUGGESTIONS,
+    MAX_SUGGESTIONS_TO_SHOW
+)
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class QueryResponse:
+    """
+    Type-safe response structure for pipeline queries.
+
+    Using a dataclass provides:
+    - Type hints and IDE autocomplete
+    - Catches typos at design time
+    - Clear documentation of response structure
+    """
+    success: bool = False
+    sql: str = ''
+    results: List[Dict] = field(default_factory=list)
+    explanation: str = ''
+    suggestions: List[str] = field(default_factory=list)
+    resolved_question: str = ''
+    insights: Optional[Dict] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return {
+            'success': self.success,
+            'sql': self.sql,
+            'results': self.results,
+            'explanation': self.explanation,
+            'suggestions': self.suggestions,
+            'resolved_question': self.resolved_question,
+            'insights': self.insights
+        }
+
+
 class PipelineOrchestrator:
     """
-    Orchestrates the complete query processing pipeline with context management.
+    Simple pipeline orchestrator: Understand → Have data? → Answer + Insights.
 
-    This class coordinates the workflow:
-    1. Resolve references in question using context
-    2. Classify the question
-    3. Generate SQL if it's a data query
-    4. Execute and validate results
-    5. Generate conversational response
-    6. Store results in context for future reference
+    Workflow:
+    1. Understand question (with context for follow-ups)
+    2. Do we have the data to answer?
+       - YES → Generate SQL → Return results + insights (parallel)
+       - NO → Tell user what's missing + suggest alternatives
+    3. Remember conversation for next question
 
-    Single Responsibility: Pipeline coordination and workflow management
+    Insights run in parallel with response generation for speed.
     """
 
     def __init__(
@@ -42,34 +75,25 @@ class PipelineOrchestrator:
         classifier: QuestionClassifier,
         response_generator: ResponseGenerator,
         sql_generator: SQLGenerator,
-        result_validator: ResultValidator,
         context_manager: ContextManager,
-        response_validator: ResponseValidator,
-        insight_generator: InsightGenerator,
-        confidence_calculator: ConfidenceCalculator
+        insight_generator: InsightGenerator
     ):
         """
-        Initialize pipeline orchestrator.
+        Initialize simplified pipeline orchestrator with insights.
 
         Args:
             classifier: Question classifier instance
             response_generator: Response generator instance
             sql_generator: SQL generator instance
-            result_validator: Result validator instance
             context_manager: Context manager for conversation memory
-            response_validator: Response validator for quality checks
-            insight_generator: Insight generator for key findings
-            confidence_calculator: Confidence calculator for scoring
+            insight_generator: Insight generator for key takeaways
         """
         self.classifier = classifier
         self.response_generator = response_generator
         self.sql_generator = sql_generator
-        self.result_validator = result_validator
         self.context_manager = context_manager
-        self.response_validator = response_validator
         self.insight_generator = insight_generator
-        self.confidence_calculator = confidence_calculator
-        logger.info("✅ Pipeline orchestrator initialized with all Phase 2 components")
+        logger.info("✅ Simplified pipeline orchestrator initialized with insights")
 
     async def process(
         self,
@@ -78,30 +102,17 @@ class PipelineOrchestrator:
         conversation_history: list = None
     ) -> Dict[str, Any]:
         """
-        Process user question through the complete pipeline with context management.
+        Process user question through simplified pipeline.
 
         Args:
             question: User's natural language question
             session_id: Session identifier for context management
-            conversation_history: List of previous messages for context (deprecated, use context manager)
+            conversation_history: List of previous messages for context
 
         Returns:
-            {
-                'success': bool,
-                'sql': str,
-                'results': List[Dict],
-                'explanation': str,
-                'warnings': List[str],
-                'suggestions': List[str],
-                'confidence': float,
-                'resolved_question': str,  # Question after reference resolution
-                'validation': ValidationResult,  # Response validation details
-                'insights': Insights,  # Key findings and takeaways
-                'confidence_details': ConfidenceScore  # Detailed confidence breakdown
-            }
+            Dictionary representation of QueryResponse
         """
-        response = self._create_empty_response()
-        original_question = question
+        response = QueryResponse()
 
         try:
             # Store user question in context
@@ -111,215 +122,286 @@ class PipelineOrchestrator:
                 content=question
             )
 
-            # Step 1: Resolve references using context ("show me more" → "show me more Bitcoin prices")
-            resolved_question = await self.context_manager.resolve_references(
-                question=question,
-                session_id=session_id
+            # Step 1 & 2: Resolve references and classify question
+            resolved_question, classification = await self._resolve_and_classify_question(
+                question, session_id
             )
+            response.resolved_question = resolved_question
 
-            # Use resolved question for processing
-            question = resolved_question
-            response['resolved_question'] = resolved_question
-
-            if resolved_question != original_question:
-                logger.info(f"Resolved reference: '{original_question}' → '{resolved_question}'")
-
-            # Step 2: Classify the question
-            classification = await self.classifier.classify(question)
-
-            # If it's not a data query, return the natural language response
+            # Handle meta queries (non-data questions)
             if not classification.get('is_data_query', True):
-                response['success'] = True
-                response['explanation'] = classification.get('response', '')
+                return self._handle_meta_query(
+                    response, classification, session_id
+                ).to_dict()
 
-                # Store meta query response in context
-                self.context_manager.add_message(
-                    session_id=session_id,
-                    role='assistant',
-                    content=response['explanation'],
-                    metadata={'type': 'meta_query'}
-                )
-
-                return response
-
-            # Step 3: Generate SQL and execute query
-            result = await self.sql_generator.ask(
-                question,
-                conversation_history=conversation_history
+            # Step 3: Generate SQL and execute
+            sql_result = await self._generate_sql_and_results(
+                resolved_question, conversation_history
             )
 
-            # Step 4: Extract and validate results
-            sql = result.get('sql', '')
-            results = result.get('results', [])
-            context_used = result.get('context_used', [])
+            # Handle case where we don't have the data
+            if not sql_result.get('sql', ''):
+                return self._handle_no_data_found(
+                    response, resolved_question, sql_result, session_id
+                ).to_dict()
 
-            response['sql'] = sql
-            response['results'] = results
-            response['confidence'] = self._calculate_confidence(context_used)
-            response['explanation'] = result.get('explanation', '')
-
-            # Check if SQL was generated
-            if not sql:
-                response['warnings'].append("❌ Could not generate SQL for this question.")
-                return response
-
-            # Step 5: Validate results
-            has_warnings, warning_msg = self.result_validator.validate_results(results, sql)
-            if has_warnings:
-                response['warnings'].append(warning_msg)
-
-            # Step 6 & 8: Parallelize independent LLM calls for better performance
-            # Run response generation and insights generation in parallel
-            explanation_task = self.response_generator.generate(
-                question=question,
-                sql=sql,
-                results=results,
-                conversation_history=conversation_history
+            # Step 4 & 5: Generate response with insights
+            response = await self._generate_response_with_insights(
+                response, resolved_question, sql_result, conversation_history
             )
 
-            # Only generate insights if we have results
-            if results and len(results) > 0:
-                insights_task = self.insight_generator.generate_insights(
+            response.success = True
+
+            # Store in context
+            self._store_assistant_response_with_data(
+                session_id=session_id,
+                explanation=response.explanation,
+                sql=response.sql,
+                results=response.results
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Pipeline error: {e}", exc_info=True)
+            response.explanation = f"Sorry, I encountered an error: {str(e)}"
+            response.success = False
+            self._store_assistant_response(session_id, response.explanation)
+
+        return response.to_dict()
+
+    async def _resolve_and_classify_question(
+        self, question: str, session_id: str
+    ) -> tuple[str, Dict]:
+        """
+        Resolve question references and classify question type.
+
+        Args:
+            question: User's question
+            session_id: Session identifier
+
+        Returns:
+            Tuple of (resolved_question, classification)
+        """
+        # Resolve references using context (e.g., "show me more" → "show me more Bitcoin prices")
+        resolved_question = await self.context_manager.resolve_references(
+            question=question,
+            session_id=session_id
+        )
+
+        if resolved_question != question:
+            logger.info(f"📝 Resolved: '{question}' → '{resolved_question}'")
+
+        # Classify question (data query vs. meta question)
+        classification = await self.classifier.classify(resolved_question)
+
+        return resolved_question, classification
+
+    def _handle_meta_query(
+        self,
+        response: QueryResponse,
+        classification: Dict,
+        session_id: str
+    ) -> QueryResponse:
+        """
+        Handle non-data queries (e.g., "what can you do?").
+
+        Args:
+            response: Response object to populate
+            classification: Classification result
+            session_id: Session identifier
+
+        Returns:
+            Populated QueryResponse
+        """
+        response.success = True
+        response.explanation = classification.get('response', '')
+        self._store_assistant_response(session_id, response.explanation)
+        return response
+
+    async def _generate_sql_and_results(
+        self,
+        question: str,
+        conversation_history: list
+    ) -> Dict:
+        """
+        Generate SQL from question and execute it.
+
+        Args:
+            question: Resolved question
+            conversation_history: Conversation context
+
+        Returns:
+            SQL generation result with sql, results, and suggestions
+        """
+        return await self.sql_generator.ask(
+            question,
+            conversation_history=conversation_history
+        )
+
+    def _handle_no_data_found(
+        self,
+        response: QueryResponse,
+        question: str,
+        sql_result: Dict,
+        session_id: str
+    ) -> QueryResponse:
+        """
+        Handle case where we don't have data to answer the question.
+
+        Args:
+            response: Response object to populate
+            question: User's question
+            sql_result: SQL generation result
+            session_id: Session identifier
+
+        Returns:
+            Populated QueryResponse
+        """
+        response.explanation = self._generate_no_data_response(question, sql_result)
+        response.suggestions = self._suggest_alternatives(question, sql_result)
+        response.success = False
+        self._store_assistant_response(session_id, response.explanation)
+        return response
+
+    async def _generate_response_with_insights(
+        self,
+        response: QueryResponse,
+        question: str,
+        sql_result: Dict,
+        conversation_history: list
+    ) -> QueryResponse:
+        """
+        Generate explanation and insights (in parallel when possible).
+
+        Args:
+            response: Response object to populate
+            question: User's question
+            sql_result: SQL generation result
+            conversation_history: Conversation context
+
+        Returns:
+            Populated QueryResponse
+        """
+        sql = sql_result.get('sql', '')
+        results = sql_result.get('results', [])
+
+        response.sql = sql
+        response.results = results
+
+        # Generate insights in parallel if we have meaningful data
+        if results and len(results) >= MIN_RESULTS_FOR_INSIGHTS:
+            explanation, insights = await asyncio.gather(
+                self.response_generator.generate(
+                    question=question,
+                    sql=sql,
+                    results=results,
+                    conversation_history=conversation_history
+                ),
+                self.insight_generator.generate_insights(
                     question=question,
                     sql=sql,
                     results=results
                 )
-                # Execute both tasks in parallel
-                explanation, insights = await asyncio.gather(
-                    explanation_task,
-                    insights_task
-                )
-                response['insights'] = insights.to_dict()
+            )
 
-                # Add insight summary to suggestions if available
-                if insights.has_insights() and insights.summary:
-                    response['suggestions'].insert(0, f"💡 {insights.summary}")
-            else:
-                # Only explanation needed, no insights
-                explanation = await explanation_task
+            response.explanation = explanation
+            response.insights = insights.to_dict()
 
-            response['explanation'] = explanation
-
-            # Step 7: Validate response quality (Phase 2)
-            validation = await self.response_validator.validate_response(
+            # Add insight summary to suggestions
+            if insights.has_insights() and insights.summary:
+                response.suggestions.insert(0, f"💡 {insights.summary}")
+        else:
+            # Just explanation for empty/small datasets
+            response.explanation = await self.response_generator.generate(
                 question=question,
                 sql=sql,
                 results=results,
-                explanation=explanation
-            )
-            response['validation'] = validation.to_dict()
-
-            # Add validation warnings if confidence is low
-            if validation.confidence < 0.7:
-                response['warnings'].append(
-                    f"⚠️ {validation.message if hasattr(validation, 'message') else 'Moderate confidence in this answer'}"
-                )
-
-            # Add validation issues as warnings
-            if validation.issues:
-                for issue in validation.issues:
-                    response['warnings'].append(f"⚠️ {issue}")
-
-            # Step 9: Calculate detailed confidence score (Phase 2)
-            confidence_score = self.confidence_calculator.calculate_confidence(
-                question=question,
-                sql=sql,
-                results=results,
-                validation_score=validation.confidence,
-                context_used=context_used,
-                schema_info=None  # Could pass schema info in future
-            )
-            response['confidence'] = confidence_score.overall
-            response['confidence_details'] = confidence_score.to_dict()
-
-            # Update warnings based on confidence level
-            if confidence_score.level == 'low':
-                if confidence_score.message not in str(response['warnings']):
-                    response['warnings'].append(confidence_score.message)
-
-            # Step 10: Add suggestions for empty results
-            if not results or len(results) == 0:
-                response['suggestions'].extend(self._generate_empty_result_suggestions())
-
-            response['success'] = True
-
-            # Store assistant response in context
-            self.context_manager.add_message(
-                session_id=session_id,
-                role='assistant',
-                content=response['explanation'],
-                sql=response['sql'],
-                results=response['results'],
-                metadata={
-                    'confidence': response['confidence'],
-                    'confidence_details': response['confidence_details'],
-                    'validation': response['validation'],
-                    'insights': response['insights'],
-                    'warnings': response['warnings'],
-                    'suggestions': response['suggestions']
-                }
+                conversation_history=conversation_history
             )
 
-        except Exception as e:
-            logger.error(f"Pipeline processing error: {e}", exc_info=True)
-            response['warnings'].append(f"❌ Error: {str(e)}")
-
-            # Store error response in context
-            self.context_manager.add_message(
-                session_id=session_id,
-                role='assistant',
-                content=f"Error: {str(e)}",
-                metadata={'error': True}
-            )
+        # Add suggestions for empty results
+        if not results:
+            response.suggestions = self._suggest_alternatives(question, sql_result)
 
         return response
 
-    @staticmethod
-    def _create_empty_response() -> Dict[str, Any]:
+    def _generate_no_data_response(self, question: str, sql_result: Dict) -> str:
         """
-        Create empty response structure.
-
-        Returns:
-            Empty response dictionary
-        """
-        return {
-            'success': False,
-            'sql': '',
-            'results': [],
-            'explanation': '',
-            'warnings': [],
-            'suggestions': [],
-            'confidence': 0.0,
-            'resolved_question': '',  # Question after reference resolution
-            'validation': None,  # Will be populated by ResponseValidator
-            'insights': None,  # Will be populated by InsightGenerator
-            'confidence_details': None  # Will be populated by ConfidenceCalculator
-        }
-
-    @staticmethod
-    def _calculate_confidence(context_used: List) -> float:
-        """
-        Calculate confidence score based on context usage.
+        Generate friendly response when we don't have the data.
 
         Args:
-            context_used: List of context items used
+            question: User's question
+            sql_result: Result from SQL generator
 
         Returns:
-            Confidence score (0.0 to 1.0)
+            Friendly explanation of what's missing
         """
-        # High confidence if context was found and used
-        return 0.9 if context_used else 0.5
+        explanation = sql_result.get('explanation', '')
 
-    @staticmethod
-    def _generate_empty_result_suggestions() -> List[str]:
+        if explanation:
+            return f"I don't have data to answer that. {explanation}"
+
+        return (
+            f"I don't have the data needed to answer '{question}'. "
+            "The information you're looking for might not be in the database, "
+            "or I might need more specific details about what you're looking for."
+        )
+
+    def _suggest_alternatives(self, question: str, sql_result: Dict) -> List[str]:
         """
-        Generate helpful suggestions for empty results.
+        Suggest helpful alternatives when data is missing or results are empty.
+
+        Args:
+            question: User's question
+            sql_result: Result from SQL generator
 
         Returns:
-            List of suggestion strings
+            List of helpful suggestions
         """
-        return [
-            "Try rephrasing your question",
-            "Check if the column or table name is correct",
-            "Ask about what data is available"
-        ]
+        suggestions = []
+
+        # Check if SQL generator provided suggestions
+        if 'suggestions' in sql_result and sql_result['suggestions']:
+            suggestions.extend(sql_result['suggestions'])
+
+        # Add generic helpful suggestions from constants
+        suggestions.extend(DEFAULT_NO_DATA_SUGGESTIONS)
+
+        return suggestions[:MAX_SUGGESTIONS_TO_SHOW]
+
+    def _store_assistant_response(self, session_id: str, content: str) -> None:
+        """
+        Store simple assistant response in context (for meta queries and errors).
+
+        Args:
+            session_id: Session identifier
+            content: Response text to store
+        """
+        self.context_manager.add_message(
+            session_id=session_id,
+            role='assistant',
+            content=content
+        )
+
+    def _store_assistant_response_with_data(
+        self,
+        session_id: str,
+        explanation: str,
+        sql: str,
+        results: List[Dict]
+    ) -> None:
+        """
+        Store assistant response with SQL and results in context.
+
+        Args:
+            session_id: Session identifier
+            explanation: Response explanation
+            sql: SQL query that was executed
+            results: Query results
+        """
+        self.context_manager.add_message(
+            session_id=session_id,
+            role='assistant',
+            content=explanation,
+            sql=sql,
+            results=results
+        )

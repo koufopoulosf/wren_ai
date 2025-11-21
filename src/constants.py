@@ -68,6 +68,22 @@ MAX_QUERY_LENGTH = 500  # Maximum characters for a query
 # SQL validation
 AMBIGUOUS_QUERY_MARKER = "AMBIGUOUS_QUERY"  # Marker for ambiguous queries
 
+# Insights generation
+MIN_RESULTS_FOR_INSIGHTS = 3  # Minimum rows needed for meaningful insights analysis
+
+# ============================================================================
+# User Suggestions
+# ============================================================================
+
+# Default suggestions when data is not found or results are empty
+DEFAULT_NO_DATA_SUGGESTIONS = [
+    "Ask 'What tables are available?' to see what data I have",
+    "Try rephrasing your question with different terms",
+    "Ask about a specific table or column name"
+]
+
+MAX_SUGGESTIONS_TO_SHOW = 3  # Maximum number of suggestions to display
+
 # ============================================================================
 # Logging
 # ============================================================================
