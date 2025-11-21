@@ -891,11 +891,6 @@ def main() -> None:
         display_message('user', question, None)
         logger.debug("User message displayed in UI")
 
-        # Show thinking status below the question with more detail
-        thinking_placeholder = st.empty()
-        with thinking_placeholder:
-            st.info("🤔 Processing your question... (Understanding query → Generating SQL → Executing)")
-
         # Get or create session_id for context management
         if 'session_id' not in st.session_state:
             import hashlib
@@ -909,22 +904,32 @@ def main() -> None:
         conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
         logger.info(f"Building conversation context with {len(conversation_history)} previous messages")
 
-        # Process question with conversation context and session_id
+        # Show streaming progress with st.status
         logger.info("🔄 Starting question processing pipeline...")
         start_time = datetime.now()
 
-        response = run_async(st.session_state.assistant.process_question(
-            question=question,
-            session_id=st.session_state.session_id,
-            conversation_history=conversation_history
-        ))
+        with st.status("Processing your question...", expanded=True) as status:
+            st.write("⚡ Checking cache...")
 
-        elapsed_time = (datetime.now() - start_time).total_seconds()
-        logger.info(f"✅ Question processing completed in {elapsed_time:.2f}s")
-        logger.info(f"Response success: {response.get('success', False)}")
+            st.write("🔍 Understanding your question...")
 
-        # Clear thinking message
-        thinking_placeholder.empty()
+            st.write("💻 Generating SQL query...")
+
+            st.write("⚡ Executing query...")
+
+            # Process question with conversation context and session_id
+            response = run_async(st.session_state.assistant.process_question(
+                question=question,
+                session_id=st.session_state.session_id,
+                conversation_history=conversation_history
+            ))
+
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"✅ Question processing completed in {elapsed_time:.2f}s")
+            logger.info(f"Response success: {response.get('success', False)}")
+
+            st.write(f"✅ Complete in {elapsed_time:.1f}s!")
+            status.update(label="✅ Processing complete!", state="complete")
 
         # Prepare assistant message
         if response['success']:
