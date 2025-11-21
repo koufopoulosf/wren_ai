@@ -93,21 +93,48 @@ class ResponseGenerator:
                 # Try to parse as JSON
                 response_data = json.loads(response_text)
 
-                # Validate structure
+                # Validate structure - ensure required fields exist
                 if 'explanation' not in response_data:
-                    # Fallback: treat entire response as explanation
+                    logger.warning("Response missing 'explanation' field, using entire response as explanation")
                     return {
                         'explanation': response_text.strip(),
                         'insights': {}
                     }
 
+                # Ensure insights is a dict (could be missing or wrong type)
+                if 'insights' not in response_data:
+                    response_data['insights'] = {}
+                elif not isinstance(response_data['insights'], dict):
+                    logger.warning(f"Invalid insights type: {type(response_data['insights'])}, resetting to empty dict")
+                    response_data['insights'] = {}
+
+                # Validate insights structure
+                expected_insight_fields = ['summary', 'top_findings', 'trends', 'outliers', 'recommendations']
+                insights = response_data['insights']
+
+                for field in expected_insight_fields:
+                    if field in insights:
+                        # Ensure list fields are actually lists
+                        if field != 'summary' and not isinstance(insights[field], list):
+                            logger.warning(f"Insight field '{field}' should be list, got {type(insights[field])}")
+                            insights[field] = []
+
+                logger.info(f"Successfully parsed structured response with {len(response_data.get('explanation', ''))} char explanation")
                 return response_data
 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 # Fallback: treat as plain text explanation
-                logger.warning("Could not parse structured response, using as plain text")
+                logger.warning(f"JSON parsing failed: {e}. Raw response length: {len(response_text)}. Using as plain text.")
+                logger.debug(f"Failed response text: {response_text[:200]}...")
                 return {
                     'explanation': response_text.strip(),
+                    'insights': {}
+                }
+            except Exception as e:
+                # Catch any other parsing errors
+                logger.error(f"Unexpected error parsing response: {e}", exc_info=True)
+                return {
+                    'explanation': response_text.strip() if response_text else "Unable to generate response.",
                     'insights': {}
                 }
 
@@ -358,13 +385,16 @@ Generate your response:"""
         return prompt
 
     @staticmethod
-    def _format_results_for_prompt(results: List[Dict], max_rows: int = 10) -> str:
+    def _format_results_for_prompt(results: List[Dict], max_rows: int = 1000) -> str:
         """
         Format query results for inclusion in LLM prompt.
 
         Args:
             results: Query results to format
-            max_rows: Maximum number of rows to include (default 10)
+            max_rows: Maximum number of rows to include (default 1000)
+                     High limit ensures LLM sees complete dataset for accurate analysis.
+                     Previously was 10, which caused hallucinations when SQL returned
+                     many rows but LLM only saw first 10.
 
         Returns:
             Formatted string representation of results
@@ -374,7 +404,12 @@ Generate your response:"""
 
         import json
 
-        # Limit rows to avoid overwhelming the context
+        # For large result sets, we want to ensure LLM sees enough data to provide
+        # accurate answers. Previously, max_rows=10 caused issues where LLM would
+        # pick the "highest" value from only the first 10 rows, not the actual maximum.
+        #
+        # Context window is large enough to handle 1000 rows for most queries.
+        # For queries that should return 1 row (aggregations), SQL should use MAX/MIN/AVG.
         display_results = results[:max_rows]
         has_more = len(results) > max_rows
 

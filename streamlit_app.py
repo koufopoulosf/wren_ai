@@ -110,7 +110,6 @@ st.markdown("""
         border-radius: 6px;
         border: 1px solid #e5e7eb;
         padding: 8px 16px;
-        transition: all 0.15s ease;
         background-color: #ffffff;
         color: #1f2937;
         font-weight: 500;
@@ -216,7 +215,6 @@ st.markdown("""
         padding: 12px 16px;
         margin: 8px 0;
         cursor: pointer;
-        transition: all 0.15s ease;
         font-size: 14px;
     }
 
