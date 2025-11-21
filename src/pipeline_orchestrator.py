@@ -145,8 +145,8 @@ class PipelineOrchestrator:
                     response, resolved_question, sql_result, session_id
                 ).to_dict()
 
-            # Step 4 & 5: Generate response with insights
-            response = await self._generate_response_with_insights(
+            # Step 4: Generate response explanation only (insights are optional via UI button)
+            response = await self._generate_response_explanation_only(
                 response, resolved_question, sql_result, conversation_history
             )
 
@@ -262,7 +262,7 @@ class PipelineOrchestrator:
         self._store_assistant_response(session_id, response.explanation)
         return response
 
-    async def _generate_response_with_insights(
+    async def _generate_response_explanation_only(
         self,
         response: QueryResponse,
         question: str,
@@ -270,10 +270,10 @@ class PipelineOrchestrator:
         conversation_history: list
     ) -> QueryResponse:
         """
-        Generate explanation and insights in a SINGLE unified LLM call.
+        Generate ONLY explanation (no insights).
 
-        This replaces the previous approach of making separate parallel calls to
-        response_generator and insight_generator.
+        This is faster and more cost-effective. Users can request insights separately
+        via action buttons in the UI.
 
         Args:
             response: Response object to populate
@@ -282,7 +282,7 @@ class PipelineOrchestrator:
             conversation_history: Conversation context
 
         Returns:
-            Populated QueryResponse
+            Populated QueryResponse (without insights)
         """
         sql = sql_result.get('sql', '')
         results = sql_result.get('results', [])
@@ -290,29 +290,47 @@ class PipelineOrchestrator:
         response.sql = sql
         response.results = results
 
-        # Generate unified response with explanation AND insights in ONE LLM call
-        unified_response = await self.response_generator.generate_with_insights(
+        # Generate explanation ONLY (no insights)
+        response.explanation = await self.response_generator.generate_explanation_only(
             question=question,
             sql=sql,
             results=results,
             conversation_history=conversation_history
         )
 
-        # Extract explanation and insights from unified response
-        response.explanation = unified_response.get('explanation', '')
-        response.insights = unified_response.get('insights', {})
-
-        # Add insight summary to suggestions if present
-        if response.insights and isinstance(response.insights, dict):
-            summary = response.insights.get('summary')
-            if summary:
-                response.suggestions.insert(0, f"💡 {summary}")
-
         # Add suggestions for empty results
         if not results:
             response.suggestions = self._suggest_alternatives(question, sql_result)
 
         return response
+
+    async def generate_insights_for_response(
+        self,
+        question: str,
+        sql: str,
+        results: List[Dict],
+        conversation_history: list = None
+    ) -> Dict[str, Any]:
+        """
+        Generate insights on-demand for an existing response.
+
+        This is called when user clicks "Show Key Takeaways & Recommendations" button.
+
+        Args:
+            question: User's original question
+            sql: SQL query that was executed
+            results: Query results
+            conversation_history: Conversation context
+
+        Returns:
+            Dictionary with insights (summary, top_findings, trends, outliers, recommendations)
+        """
+        return await self.response_generator.generate_insights_only(
+            question=question,
+            sql=sql,
+            results=results,
+            conversation_history=conversation_history
+        )
 
     def _generate_no_data_response(self, question: str, sql_result: Dict) -> str:
         """

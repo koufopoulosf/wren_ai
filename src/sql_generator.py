@@ -269,6 +269,25 @@ Note: The user's current question may reference this conversation history. Use i
 - If the question references the conversation history (like "yes", "proceed", "show more"), interpret it in context
 - If the question is too vague even with history, return the text "AMBIGUOUS_QUERY" instead of SQL
 
+## CRITICAL: Use Aggregation Functions When Appropriate
+When the user asks for:
+- "highest", "maximum", "max", "largest", "biggest" → Use MAX() function
+- "lowest", "minimum", "min", "smallest" → Use MIN() function
+- "average", "mean", "avg" → Use AVG() function
+- "total", "sum" → Use SUM() function
+- "count", "how many" → Use COUNT() function
+
+Example GOOD queries:
+- "What was Bitcoin's highest price in 2024?" → SELECT MAX(high_price) FROM bitcoin_prices WHERE EXTRACT(YEAR FROM date) = 2024
+- "Show me the lowest trading volume" → SELECT MIN(volume) FROM trades
+- "What's the average staking reward?" → SELECT AVG(reward_amount) FROM staking_rewards
+
+Example BAD queries (DO NOT DO THIS):
+- "What was Bitcoin's highest price in 2024?" → SELECT * FROM bitcoin_prices WHERE EXTRACT(YEAR FROM date) = 2024  ❌ WRONG - Should use MAX()
+- "Show me the lowest volume" → SELECT volume FROM trades ORDER BY volume ASC LIMIT 1  ❌ INEFFICIENT - Should use MIN()
+
+IMPORTANT: Always use aggregate functions (MAX, MIN, AVG, SUM, COUNT) instead of retrieving all rows when the user wants a single computed value.
+
 SQL Query:"""
 
             # 4. Call Claude using LLMUtils

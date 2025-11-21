@@ -110,7 +110,6 @@ st.markdown("""
         border-radius: 6px;
         border: 1px solid #e5e7eb;
         padding: 8px 16px;
-        transition: all 0.15s ease;
         background-color: #ffffff;
         color: #1f2937;
         font-weight: 500;
@@ -216,7 +215,6 @@ st.markdown("""
         padding: 12px 16px;
         margin: 8px 0;
         cursor: pointer;
-        transition: all 0.15s ease;
         font-size: 14px;
     }
 
@@ -342,10 +340,11 @@ def display_message(role: str, content: str, metadata: Dict[str, Any] = None) ->
                 with st.expander(f"📊 Results ({len(results)} rows)", expanded=True):
                     st.dataframe(df, use_container_width=True, height=min(400, len(results) * 35 + 38))
 
-                    # Export options
+                    # Action buttons row 1: Export options
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
+                        # CSV export
                         csv = df.to_csv(index=False)
                         st.download_button(
                             "⬇ CSV",
@@ -357,19 +356,40 @@ def display_message(role: str, content: str, metadata: Dict[str, Any] = None) ->
                         )
 
                     with col2:
-                        json_str = df.to_json(orient='records', indent=2)
+                        # Excel export
+                        from io import BytesIO
+                        buffer = BytesIO()
+                        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                            df.to_excel(writer, index=False, sheet_name='Query Results')
+                            # Auto-adjust column widths
+                            worksheet = writer.sheets['Query Results']
+                            for idx, col in enumerate(df.columns):
+                                max_length = max(
+                                    df[col].astype(str).apply(len).max(),
+                                    len(str(col))
+                                )
+                                worksheet.column_dimensions[chr(65 + idx)].width = min(max_length + 2, 50)
+
                         st.download_button(
-                            "⬇ JSON",
-                            json_str,
-                            f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                            "application/json",
-                            key=f"json_{metadata.get('timestamp', '')}",
+                            "⬇ Excel",
+                            buffer.getvalue(),
+                            f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key=f"excel_{metadata.get('timestamp', '')}",
                             use_container_width=True
                         )
 
                     with col3:
+                        # Chart button
                         if st.button("📈 Chart", key=f"chart_{metadata.get('timestamp', '')}", use_container_width=True):
                             st.session_state[f'show_chart_{metadata.get("timestamp", "")}'] = True
+
+                    # Action buttons row 2: Insights button (only if insights not already shown)
+                    if not metadata.get('insights'):
+                        st.markdown("")  # Spacing
+                        if st.button("💎 Show Key Takeaways & Recommendations", key=f"insights_btn_{metadata.get('timestamp', '')}", use_container_width=True):
+                            st.session_state[f'request_insights_{metadata.get("timestamp", "")}'] = True
+                            st.rerun()
 
                 # Show chart if requested
                 if st.session_state.get(f'show_chart_{metadata.get("timestamp", "")}'):
@@ -728,6 +748,30 @@ def main() -> None:
 
         st.markdown("---")
 
+    # Check if any insights were requested
+    for idx, message in enumerate(st.session_state.messages):
+        if message['role'] == 'assistant' and message.get('metadata'):
+            metadata = message['metadata']
+            timestamp = metadata.get('timestamp', '')
+
+            # Check if insights were requested for this message
+            if st.session_state.get(f'request_insights_{timestamp}'):
+                # Generate insights
+                with st.spinner("💎 Generating key takeaways and recommendations..."):
+                    insights = run_async(st.session_state.assistant.orchestrator.generate_insights_for_response(
+                        question=metadata.get('question', ''),
+                        sql=metadata.get('sql', ''),
+                        results=metadata.get('results', []),
+                        conversation_history=st.session_state.messages[:idx]
+                    ))
+
+                    # Update message metadata with insights
+                    st.session_state.messages[idx]['metadata']['insights'] = insights
+
+                    # Clear the request flag
+                    del st.session_state[f'request_insights_{timestamp}']
+                    st.rerun()
+
     for message in st.session_state.messages:
         display_message(message['role'], message['content'], message.get('metadata'))
 
@@ -782,10 +826,12 @@ def main() -> None:
             content = response.get('explanation', '✅ Query executed successfully!')
             # For successful queries, show warnings separately (like result warnings)
             metadata = {
+                'question': question,  # Store question for insights generation
                 'sql': response.get('sql'),
                 'results': response.get('results'),
                 'warnings': response.get('warnings'),
                 'suggestions': response.get('suggestions'),
+                'insights': response.get('insights'),  # Will be None initially
                 'timestamp': datetime.now().isoformat()
             }
         else:
