@@ -52,6 +52,106 @@ BASE_VOLUMES = {
     16: 300000000, 17: 200000000, 18: 400000, 19: 8000000000000, 20: 100000000,
 }
 
+# Token metadata mapping
+TOKEN_INFO = {
+    1: ('BTC', 'Bitcoin', 'native', 1, 21000000, 19500000, 21000000, 8, '2009-01-03'),
+    2: ('ETH', 'Ethereum', 'native', 1, None, 120000000, None, 18, '2015-07-30'),
+    3: ('USDT', 'Tether', 'erc20', 1, None, 95000000000, None, 6, '2014-10-06'),
+    4: ('BNB', 'Binance Coin', 'bep20', 2, 200000000, 150000000, 200000000, 18, '2017-07-01'),
+    5: ('SOL', 'Solana', 'native', 3, None, 400000000, None, 9, '2020-03-16'),
+    6: ('USDC', 'USD Coin', 'erc20', 1, None, 35000000000, None, 6, '2018-09-26'),
+    7: ('ADA', 'Cardano', 'native', 4, 45000000000, 35000000000, 45000000000, 6, '2017-09-29'),
+    8: ('AVAX', 'Avalanche', 'native', 5, 720000000, 350000000, 720000000, 18, '2020-09-21'),
+    9: ('DOT', 'Polkadot', 'native', 6, None, 1200000000, None, 10, '2020-05-26'),
+    10: ('MATIC', 'Polygon', 'erc20', 1, 10000000000, 9000000000, 10000000000, 18, '2019-05-31'),
+    11: ('WBTC', 'Wrapped Bitcoin', 'erc20', 1, None, 150000, None, 8, '2019-01-31'),
+    12: ('LINK', 'Chainlink', 'erc20', 1, 1000000000, 550000000, 1000000000, 18, '2017-09-19'),
+    13: ('UNI', 'Uniswap', 'erc20', 1, 1000000000, 750000000, 1000000000, 18, '2020-09-17'),
+    14: ('AAVE', 'Aave', 'erc20', 1, 16000000, 14500000, 16000000, 18, '2020-10-02'),
+    15: ('DAI', 'Dai', 'erc20', 1, None, 4000000000, None, 18, '2017-12-27'),
+    16: ('ARB', 'Arbitrum', 'native', 7, 10000000000, 1250000000, 10000000000, 18, '2023-03-23'),
+    17: ('OP', 'Optimism', 'native', 8, 4294967296, 650000000, 4294967296, 18, '2022-05-31'),
+    18: ('WETH', 'Wrapped Ether', 'erc20', 1, None, 3000000, None, 18, '2017-12-18'),
+    19: ('SHIB', 'Shiba Inu', 'erc20', 1, 1000000000000000, 589000000000000, 1000000000000000, 18, '2020-08-01'),
+    20: ('APE', 'ApeCoin', 'erc20', 1, 1000000000, 350000000, 1000000000, 18, '2022-03-17'),
+}
+
+# Blockchain information
+BLOCKCHAINS = [
+    (1, 'Ethereum', 'ETH', 1, 'PoS', 12, 'ETH', '2015-07-30'),
+    (2, 'Binance Smart Chain', 'BNB', 56, 'PoSA', 3, 'BNB', '2020-09-01'),
+    (3, 'Solana', 'SOL', None, 'PoH', 0.4, 'SOL', '2020-03-16'),
+    (4, 'Cardano', 'ADA', None, 'PoS', 20, 'ADA', '2017-09-29'),
+    (5, 'Avalanche', 'AVAX', 43114, 'PoS', 2, 'AVAX', '2020-09-21'),
+    (6, 'Polkadot', 'DOT', None, 'NPoS', 6, 'DOT', '2020-05-26'),
+    (7, 'Arbitrum', 'ARB', 42161, 'PoS', 0.25, 'ETH', '2021-08-31'),
+    (8, 'Optimism', 'OP', 10, 'PoS', 2, 'ETH', '2021-12-16'),
+]
+
+# User information
+USERS = [
+    (1, 'whale_trader', 'whale@example.com', 'verified', 'institutional', 'US', 52000, 150000000.00),
+    (2, 'hodl_master', 'hodl@example.com', 'verified', 'premium', 'GB', 850, 25000000.00),
+    (3, 'defi_enthusiast', 'defi@example.com', 'verified', 'premium', 'DE', 12500, 8000000.00),
+    (4, 'btc_maximalist', 'btc@example.com', 'verified', 'basic', 'CA', 320, 12000000.00),
+    (5, 'eth_dev', 'eth@example.com', 'verified', 'premium', 'SG', 4200, 6000000.00),
+    (6, 'altcoin_hunter', 'altcoin@example.com', 'verified', 'basic', 'AU', 8900, 2500000.00),
+    (7, 'day_trader_pro', 'daytrader@example.com', 'verified', 'institutional', 'JP', 45000, 95000000.00),
+    (8, 'staking_rewards', 'staking@example.com', 'verified', 'basic', 'NL', 1200, 850000.00),
+]
+
+def generate_blockchains_sql():
+    """Generate blockchain base data"""
+    print("-- =====================================================")
+    print("-- BLOCKCHAINS (Base blockchain data)")
+    print("-- =====================================================")
+    print()
+    print("INSERT INTO blockchains (blockchain_id, name, symbol, chain_id, consensus_mechanism, block_time_seconds, native_token, launched_date) VALUES")
+
+    rows = []
+    for blockchain_id, name, symbol, chain_id, consensus, block_time, native_token, launch_date in BLOCKCHAINS:
+        chain_id_str = str(chain_id) if chain_id is not None else 'NULL'
+        rows.append(f"({blockchain_id}, '{name}', '{symbol}', {chain_id_str}, '{consensus}', {block_time}, '{native_token}', '{launch_date}')")
+
+    print(",\n".join(rows) + ";")
+    print()
+
+def generate_users_sql():
+    """Generate user base data"""
+    print("-- =====================================================")
+    print("-- USERS (Platform users)")
+    print("-- =====================================================")
+    print()
+    print("INSERT INTO users (user_id, username, email, kyc_status, account_tier, country_code, total_trades, total_volume_usd) VALUES")
+
+    rows = []
+    for user_id, username, email, kyc_status, account_tier, country, total_trades, total_volume in USERS:
+        rows.append(f"({user_id}, '{username}', '{email}', '{kyc_status}', '{account_tier}', '{country}', {total_trades}, {total_volume})")
+
+    print(",\n".join(rows) + ";")
+    print()
+
+def generate_tokens_sql():
+    """Generate token base data"""
+    print("-- =====================================================")
+    print("-- TOKENS (20 major cryptocurrencies)")
+    print("-- =====================================================")
+    print()
+    print("INSERT INTO tokens (token_id, code, name, ticker, blockchain_id, token_type, total_supply, circulating_supply, max_supply, decimals, launch_date) VALUES")
+
+    rows = []
+    for token_id in range(1, 21):
+        ticker, name, token_type, blockchain_id, total_supply, circulating_supply, max_supply, decimals, launch_date = TOKEN_INFO[token_id]
+
+        # Handle NULL values for unlimited supply
+        total_supply_str = str(total_supply) if total_supply is not None else 'NULL'
+        max_supply_str = str(max_supply) if max_supply is not None else 'NULL'
+
+        rows.append(f"({token_id}, '{ticker.upper()}', '{name}', '{ticker.upper()}', {blockchain_id}, '{token_type}', {total_supply_str}, {circulating_supply}, {max_supply_str}, {decimals}, '{launch_date}')")
+
+    print(",\n".join(rows) + ";")
+    print()
+
 def generate_ohlcv(token_id, date, prev_close):
     """Generate OHLCV data for a single day"""
     volatility = VOLATILITY[token_id]
@@ -244,10 +344,16 @@ if __name__ == "__main__":
     print("-- Date Range:", START_DATE, "to", END_DATE)
     print()
 
+    # Generate base data first (required for foreign key constraints)
+    generate_blockchains_sql()
+    generate_users_sql()
+    generate_tokens_sql()
+
+    # Generate dependent data
     generate_price_history_sql()
     generate_volume_data_sql()
     generate_revenue_data_sql()
     generate_holdings_snapshots_sql()
 
     print("-- Data generation complete!")
-    print(f"-- Total records generated: ~{730 * 20 + 730 * 20 + 24 * 3 + 24 * 8:,}")
+    print(f"-- Total records: ~{8 + 8 + 20 + 730 * 20 + 730 * 20 + 24 * 3 + 24 * 8:,} (blockchains, users, tokens, price history, volume, revenue, holdings)")
