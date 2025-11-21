@@ -12,6 +12,7 @@ from anthropic import Anthropic
 from llm_utils import LLMUtils
 from constants import (
     LLM_MAX_TOKENS_CONVERSATIONAL,
+    LLM_MAX_TOKENS_INSIGHTS,
     LLM_TEMPERATURE_PRECISE
 )
 from exceptions import LLMError
@@ -149,14 +150,14 @@ class ResponseGenerator:
 
             # Generate insights
             logger.info("Calling Claude API for insights generation...")
-            logger.debug(f"Model: {self.model}, Max tokens: {LLM_MAX_TOKENS_CONVERSATIONAL}")
+            logger.debug(f"Model: {self.model}, Max tokens: {LLM_MAX_TOKENS_INSIGHTS}")
             llm_start = time.time()
 
             response_text = await LLMUtils.call_claude_async(
                 client=self.client,
                 model=self.model,
                 prompt=prompt,
-                max_tokens=LLM_MAX_TOKENS_CONVERSATIONAL,
+                max_tokens=LLM_MAX_TOKENS_INSIGHTS,
                 temperature=LLM_TEMPERATURE_PRECISE
             )
 
