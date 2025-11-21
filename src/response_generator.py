@@ -100,8 +100,27 @@ class ResponseGenerator:
                 'outliers': List[str],
                 'recommendations': List[str]
             }
+
+        Raises:
+            Exception: If insights generation fails (with detailed error message)
         """
         try:
+            logger.info(f"Building insights prompt for question: {question[:100]}...")
+
+            # Validate inputs
+            if not question:
+                raise ValueError("Question cannot be empty")
+            if not results or not isinstance(results, list):
+                logger.warning("No results provided for insights generation")
+                # Return empty insights structure rather than failing
+                return {
+                    'summary': '',
+                    'top_findings': [],
+                    'trends': [],
+                    'outliers': [],
+                    'recommendations': []
+                }
+
             # Build insights-only prompt
             prompt = self._build_insights_only_prompt(
                 question=question,
@@ -109,6 +128,8 @@ class ResponseGenerator:
                 results=results,
                 conversation_history=conversation_history
             )
+
+            logger.info("Calling Claude API for insights generation...")
 
             # Generate insights
             response_text = await LLMUtils.call_claude_async(
@@ -119,9 +140,12 @@ class ResponseGenerator:
                 temperature=LLM_TEMPERATURE_PRECISE
             )
 
+            logger.info(f"Received response from Claude API (length: {len(response_text)})")
+
             # Parse JSON response
             try:
                 insights = json.loads(response_text)
+                logger.info("Successfully parsed insights JSON")
 
                 # Validate structure
                 expected_fields = ['summary', 'top_findings', 'trends', 'outliers', 'recommendations']
@@ -131,15 +155,29 @@ class ResponseGenerator:
                     elif field != 'summary' and not isinstance(insights[field], list):
                         insights[field] = []
 
+                # Log what we got
+                logger.info(f"Insights structure validated - summary: {bool(insights.get('summary'))}, "
+                          f"findings: {len(insights.get('top_findings', []))}, "
+                          f"trends: {len(insights.get('trends', []))}, "
+                          f"outliers: {len(insights.get('outliers', []))}, "
+                          f"recommendations: {len(insights.get('recommendations', []))}")
+
                 return insights
 
             except json.JSONDecodeError as e:
-                logger.warning(f"Could not parse insights JSON: {e}")
-                return {}
+                logger.error(f"Could not parse insights JSON: {e}\nResponse text: {response_text[:500]}")
+                raise ValueError(f"Failed to parse insights response: {str(e)}")
+
+        except ValueError as e:
+            # Re-raise ValueError with original message
+            logger.error(f"Validation error in insights generation: {e}")
+            raise
 
         except Exception as e:
-            logger.error(f"Error generating insights: {e}", exc_info=True)
-            return {}
+            logger.error(f"Unexpected error generating insights: {e}", exc_info=True)
+            # Provide more context in the error message
+            error_msg = f"Insights generation failed: {type(e).__name__}: {str(e)}"
+            raise Exception(error_msg) from e
 
     async def generate_with_insights(
         self,
